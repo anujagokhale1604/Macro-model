@@ -50,6 +50,11 @@ df = load_data()
 
 # --- SIDEBAR: CONTROLS ---
 st.sidebar.title("📜 Policy Lab")
+
+# RESET BUTTON
+if st.sidebar.button("🔄 Reset to Baseline"):
+    st.rerun()
+
 market = st.sidebar.selectbox("Market Selection", ["India", "UK", "Singapore"])
 
 st.sidebar.divider()
@@ -107,7 +112,7 @@ else: start_point = valid_df['Date'].min()
 filtered_df = valid_df[valid_df['Date'] >= start_point]
 latest = valid_df.iloc[-1]
 
-# Math
+# Taylor Rule Math
 base_inf = latest[m['cpi']]
 curr_rate = latest[m['rate']]
 raw_fv = r_star + base_inf + inf_weight * (base_inf - target_inf) + 0.5 * output_gap
@@ -116,7 +121,7 @@ gap_bps = (fair_value - curr_rate) * 100
 
 # --- DASHBOARD ---
 st.title(f"{market} Policy Intelligence")
-st.markdown(f"**Scenario Mode:** `{scenario}`")
+st.markdown(f"**Scenario Mode:** `{scenario}` | **Active Framework:** `{philosophy}`")
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Headline CPI", f"{base_inf:.2f}%")
@@ -139,23 +144,23 @@ fig.update_layout(
     title=dict(
         text=f"Historical Framework vs. Model Projection",
         font=dict(size=20, color='#1A1C1E', family="Georgia"),
-        y=0.95 # Move title higher
+        y=0.96
     ),
-    height=500,
+    height=550,
     template="simple_white",
     paper_bgcolor='rgba(0,0,0,0)',
     plot_bgcolor='rgba(0,0,0,0)',
-    margin=dict(l=10, r=10, t=80, b=80), # Increased top and bottom margins
+    margin=dict(l=10, r=10, t=80, b=120), # Large bottom margin for legend
     legend=dict(
         orientation="h",
-        yanchor="bottom",
-        y=-0.25, # Move legend below the x-axis
+        yanchor="top",
+        y=-0.15, 
         xanchor="center",
         x=0.5,
         font=dict(size=13, color='#1A1C1E', family="Georgia")
     ),
-    xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#3E362E')), 
-    yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Rate (%)", tickfont=dict(color='#3E362E'))
+    xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#3E362E'), title="Year"), 
+    yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Interest Rate (%)", tickfont=dict(color='#3E362E'))
 )
 st.plotly_chart(fig, use_container_width=True)
 
@@ -182,14 +187,9 @@ with left:
     """, unsafe_allow_html=True)
 
 with right:
-    st.subheader("Teaching Moment")
+    st.subheader("The Taylor Rule Model")
     st.markdown("""
-    **The Taylor Rule** is a key teaching tool for understanding how central banks respond to inflation and growth. 
-    
-    * **Inflation Gap:** (Actual Inflation - Target)
-    * **Output Gap:** (Actual GDP - Potential GDP)
-    
-    When inflation is high, the rule dictates raising rates to cool the economy.
+    This lab uses the Taylor Rule to simulate optimal policy rates. It suggests how much a central bank should change the nominal interest rate in response to changes in inflation and economic output.
     """)
     
 
