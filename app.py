@@ -5,25 +5,30 @@ import os
 from datetime import datetime, timedelta
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Macro Intelligence Terminal", layout="wide", page_icon="🏛️")
+st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="🏛️")
 
-# FORCED VISIBILITY & CLEAN UI CSS
+# GLOBAL VISIBILITY CSS (Forces Light-Mode Readability)
 st.markdown("""
     <style>
-    /* Force Widget Labels to be Dark/Visible */
-    .stWidgetLabel p, .stSlider label, .stSelectbox label, .stRadio label {
+    /* Force Background and Text Contrast */
+    .main { background-color: #FFFFFF !important; }
+    
+    /* Metrics: Label and Value Visibility */
+    [data-testid="stMetricLabel"] { color: #5F6368 !important; font-size: 1rem !important; font-weight: 600 !important; }
+    [data-testid="stMetricValue"] { color: #1A1C1E !important; font-weight: 800 !important; }
+    
+    /* Widget Labels (Sliders, Selectboxes, Radio) */
+    .stWidgetLabel p, label {
         color: #1A1C1E !important;
-        font-weight: 600 !important;
-        font-size: 1rem !important;
+        font-weight: 700 !important;
+        font-size: 0.95rem !important;
     }
-    .main { background-color: #fcfcfc; }
-    div[data-testid="stMetric"] {
-        background-color: #ffffff;
-        border: 1px solid #eeeeee;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-    }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] { background-color: #F8F9FA !important; border-right: 1px solid #E0E0E0; }
+    
+    /* Headers */
+    h1, h2, h3, h4 { color: #1A237E !important; font-weight: 800 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -40,126 +45,129 @@ def load_data():
 
 df = load_data()
 
-# --- SIDEBAR: POLICY CONTROLS ---
-st.sidebar.title("🎮 Policy Simulation")
-market = st.sidebar.selectbox("Market Focus", ["India", "UK", "Singapore"])
+# --- SIDEBAR: EDUCATIONAL CONTROLS ---
+st.sidebar.title("👨‍🏫 Policy Simulator")
+market = st.sidebar.selectbox("Select Economy", ["India", "UK", "Singapore"])
 
 st.sidebar.divider()
-st.sidebar.subheader("📅 Data Horizon")
-horizon = st.sidebar.radio("View Period", ["Last 1 Year", "Last 5 Years", "Full History"], index=1)
+st.sidebar.subheader("📅 Time Horizon")
+horizon = st.sidebar.radio("Observation Window", ["Last 1 Year", "Last 5 Years", "Full History"], index=1)
 
 st.sidebar.divider()
-scenario = st.sidebar.selectbox("Macro Scenario Presets", 
-    ["Custom", "Soft Landing", "Stagflation Shock", "Global Recession"])
+st.sidebar.subheader("🏗️ Model Calibration")
+# Teaching Tool Feature: Philosophy Toggle
+philosophy = st.sidebar.selectbox("Central Bank Philosophy", 
+    ["Standard Taylor", "Inflation Hawk", "Dual Mandate (Growth Focus)", "Custom"],
+    help="Hawks weigh inflation more. Dual Mandate balances growth/output gaps.")
 
-# Logic for Scenario Presets
-if scenario == "Soft Landing":
-    r_star, target_inf, output_gap, inf_weight, smoothing = 1.5, 2.0, 0.5, 1.2, 0.3
-elif scenario == "Stagflation Shock":
-    r_star, target_inf, output_gap, inf_weight, smoothing = 2.5, 2.0, -2.0, 2.0, 0.1
-elif scenario == "Global Recession":
-    r_star, target_inf, output_gap, inf_weight, smoothing = 0.5, 2.0, -4.0, 0.8, 0.5
+if philosophy == "Inflation Hawk":
+    inf_weight, y_weight, smoothing = 2.0, 0.2, 0.1
+elif philosophy == "Dual Mandate (Growth Focus)":
+    inf_weight, y_weight, smoothing = 1.0, 1.0, 0.4
 else:
-    # Custom Toggles
-    r_star = st.sidebar.slider("Neutral Rate (r*)", 0.0, 5.0, 1.5)
-    target_inf = st.sidebar.slider("Inflation Target (%)", 1.0, 6.0, 4.0 if market == "India" else 2.0)
-    output_gap = st.sidebar.slider("Output Gap (%)", -5.0, 5.0, 0.0)
-    inf_weight = st.sidebar.slider("Inflation Weight (λπ)", 0.5, 2.0, 1.5)
-    smoothing = st.sidebar.slider("Rate Smoothing Factor", 0.0, 1.0, 0.2)
+    inf_weight = st.sidebar.slider("Inflation Weight (λπ)", 0.5, 2.5, 1.5, help="Responsiveness to inflation deviations.")
+    y_weight = st.sidebar.slider("Output Weight (λy)", 0.0, 1.5, 0.5, help="Responsiveness to GDP/Output Gap.")
+    smoothing = st.sidebar.slider("Interest Rate Smoothing", 0.0, 1.0, 0.2, help="How slowly the bank moves rates.")
+
+st.sidebar.divider()
+st.sidebar.subheader("⚡ Shock Simulations")
+oil_shock = st.sidebar.slider("Energy/Supply Shock (%)", -50, 100, 0, help="Simulates cost-push inflation from energy prices.")
+r_star = st.sidebar.slider("Natural Real Rate (r*)", 0.0, 5.0, 1.5, help="The theoretical rate that neither stimulates nor contracts the economy.")
 
 # --- ANALYTICS ENGINE ---
 m_map = {
-    "India": {"cpi": "CPI_India", "rate": "Policy_India"},
-    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK"},
-    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore"}
+    "India": {"cpi": "CPI_India", "rate": "Policy_India", "beta": 0.12, "target": 4.0},
+    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "beta": 0.07, "target": 2.0},
+    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore", "beta": 0.10, "target": 2.0}
 }
 m = m_map[market]
 valid_df = df.dropna(subset=[m['cpi'], m['rate']])
 
 # Timeline Filtering
 latest_date = valid_df['Date'].max()
-if horizon == "Last 1 Year":
-    start_point = latest_date - timedelta(days=365)
-elif horizon == "Last 5 Years":
-    start_point = latest_date - timedelta(days=5*365)
-else:
-    start_point = valid_df['Date'].min()
+if horizon == "Last 1 Year": start_point = latest_date - timedelta(days=365)
+elif horizon == "Last 5 Years": start_point = latest_date - timedelta(days=5*365)
+else: start_point = valid_df['Date'].min()
 
 filtered_df = valid_df[valid_df['Date'] >= start_point]
 latest = valid_df.iloc[-1]
 
 # Calculations
-inf = latest[m['cpi']]
+base_inf = latest[m['cpi']]
+shock_impact = (oil_shock * m['beta'])
+adj_inf = base_inf + shock_impact
 curr_rate = latest[m['rate']]
+target_inf = m['target']
 
-# Advanced Taylor Rule with Weights: i = r* + pi + λπ(pi - target) + 0.5(output_gap)
-raw_fv = r_star + inf + inf_weight * (inf - target_inf) + 0.5 * (output_gap)
+# Formula: i = r* + pi + λπ(pi - target) + λy(output_gap)
+# Assume neutral output gap (0) unless we add a slider
+raw_fv = r_star + adj_inf + inf_weight * (adj_inf - target_inf)
 
-# Apply Smoothing: (1-ρ)*FV + ρ*Current
+# Apply Smoothing
 fair_value = ( (1 - smoothing) * raw_fv ) + (smoothing * curr_rate)
-gap = fair_value - curr_rate
+gap_bps = (fair_value - curr_rate) * 100
 
-# --- DASHBOARD LAYOUT ---
-st.title(f"🚀 {market} Policy Terminal")
-st.markdown(f"**Scenario:** `{scenario}` | **Smoothing:** `{smoothing}` | **As Of:** {latest['Date'].strftime('%B %Y')}")
+# --- DASHBOARD ---
+st.title(f"🏛️ {market}: Policy Lab & Terminal")
+st.markdown(f"**Current Regime:** `{philosophy}` | **Last Data Print:** {latest['Date'].strftime('%B %Y')}")
 
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("Headline CPI", f"{inf:.2f}%")
-m2.metric("Policy Rate", f"{curr_rate:.2f}%")
-m3.metric("Taylor Fair Value", f"{fair_value:.2f}%")
-m4.metric("Policy Gap", f"{gap*100:+.0f} bps", delta_color="inverse")
+# Metrics Section (Forced visibility)
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("Headline CPI", f"{base_inf:.2f}%")
+c2.metric("Shock-Adj. CPI", f"{adj_inf:.2f}%", f"{shock_impact:+.2f}%" if oil_shock != 0 else None, delta_color="inverse")
+c3.metric("Current Policy Rate", f"{curr_rate:.2f}%")
+c4.metric("Model Fair Value", f"{fair_value:.2f}%", f"{gap_bps:+.0f} bps", delta_color="inverse")
 
-# Main Chart
+# Chart
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Historical Policy Rate", line=dict(color="#0052cc", width=3)))
+fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Policy Rate", line=dict(color="#0052cc", width=3)))
 fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['cpi']], name="Headline CPI", line=dict(color="#ff4b4b", width=1.5, dash='dot')))
 fig.add_trace(go.Scatter(x=[latest['Date']], y=[fair_value], mode='markers', 
                          marker=dict(size=18, color='#ffc107', symbol='star', line=dict(width=1, color='black')),
                          name="Terminal Rate Suggestion"))
 
 fig.update_layout(
-    height=420, template="plotly_white", margin=dict(l=10, r=10, t=10, b=10),
+    height=400, template="plotly_white", margin=dict(l=10, r=10, t=10, b=10),
     legend=dict(orientation="h", y=1.1, x=0),
-    xaxis=dict(showgrid=True, gridcolor="#f5f5f5"),
-    yaxis=dict(showgrid=True, gridcolor="#f5f5f5", title="Percent (%)")
+    xaxis=dict(gridcolor="#f0f0f0"), yaxis=dict(gridcolor="#f0f0f0", title="Percent (%)")
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# --- INSIGHTS SECTION ---
+# --- TEACHING / INSIGHTS SECTION ---
 st.divider()
-
-if gap > 0.5:
-    sig, col, bg = "HAWKISH BIAS", "#d32f2f", "#fff5f5"
-    msg = "The policy rate is trailing fundamentals. Data suggests a tightening bias is required to anchor inflation expectations."
-elif gap < -0.5:
-    sig, col, bg = "DOVISH PIVOT", "#2e7d32", "#f5fff5"
-    msg = "Current rates are restrictive relative to the model. Conditions support a transition toward monetary easing."
-else:
-    sig, col, bg = "NEUTRAL / CALIBRATED", "#455a64", "#f8f9fa"
-    msg = "The current stance is appropriately calibrated to the prevailing inflation and growth outlook."
-
 left, right = st.columns([2, 1])
 
 with left:
+    # Assessment Box
+    status = "HAWKISH" if gap_bps > 50 else "DOVISH" if gap_bps < -50 else "NEUTRAL"
+    color = "#D32F2F" if status == "HAWKISH" else "#2E7D32" if status == "DOVISH" else "#455A64"
+    bg = "#FFF5F5" if status == "HAWKISH" else "#F5FFF5" if status == "DOVISH" else "#F8F9FA"
+
     st.markdown(f"""
-    <div style="background-color: {bg}; border: 1px solid {col}; border-left: 10px solid {col}; padding: 25px; border-radius: 10px; color: #1A1C1E;">
-        <h3 style="color: {col}; margin-top: 0;">Market Stance: {sig}</h3>
-        <p style="font-size: 1.15rem; line-height: 1.6;">{msg}</p>
-        <hr style="opacity: 0.2;">
-        <p style="font-size: 0.95rem;"><strong>Quantitative Assessment:</strong> The gap is <strong>{gap*100:.0f} basis points</strong>. 
-        This is modeled using a {inf_weight}x weight on inflation deviations and a {smoothing} smoothing factor.</p>
+    <div style="background-color: {bg}; border: 2px solid {color}; border-left: 10px solid {color}; padding: 25px; border-radius: 10px; color: #1A1C1E;">
+        <h3 style="color: {color}; margin-top: 0;">Market Stance: {status}</h3>
+        <p style="font-size: 1.1rem; line-height: 1.6;">
+            The model indicates a <b>{gap_bps:+.0f} basis point</b> deviation from the calculated fair value. 
+            Under the <b>{philosophy}</b> framework, the central bank should ideally target a terminal rate of <b>{fair_value:.2f}%</b>.
+        </p>
+        <p style="font-size: 0.95rem; background: #ffffff; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
+            <b>Teaching Note:</b> Notice how increasing the 'Smoothing Factor' in the sidebar keeps the suggested rate closer to the 
+            actual current rate. This simulates a central bank that prefers gradual adjustments to avoid market volatility.
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
 with right:
-    st.subheader("🏛️ Institutional Context")
+    st.subheader("🏛️ Institutional Research")
     st.markdown(f"""
     **The Policy Trilemma**
     
-    Central banks in Emerging Markets, particularly **{market}**, navigate a fundamental trade-off. It is theoretically impossible to maintain a fixed exchange rate, free capital movement, and independent monetary policy simultaneously.
+    Central banks in economies like **{market}** navigate the 'Impossible Trinity.' They must balance:
+    1. **Exchange Rate Stability**
+    2. **Free Capital Flow**
+    3. **Independent Monetary Policy**
     
-    * **Growth vs. Stability:** Large external shocks often force a deviation from Taylor Rule prescriptions to manage capital flows.
-    * **Currency Protection:** In volatile regimes, rates may be held higher than the domestic model suggests to prevent currency depreciation.
+    **Simulation Insight:** If you simulate a large **Supply Shock**, you will see the Fair Value rise. In reality, a bank might ignore this shock if growth is weak, highlighting the trade-off between fighting inflation and supporting the economy.
     """)
 
-st.caption("Quantitative Policy Lab | Strategic Research Analytics")
+st.caption("Quantitative Policy Lab | Designed for Academic & Institutional Research")
