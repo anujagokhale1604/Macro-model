@@ -36,5 +36,5 @@ Users can toggle between central banking philosophies:
 The terminal calculates a **Policy Gap** in **Basis Points (bps)**—the industry standard for JPMC, Goldman Sachs, and BCG—indicating whether a market is "over-tightened" or "behind the curve."
 
 ---
-**Developed by:** [Anuja Gokhale]  
+**Developed by:** Anuja Gokhale  
 **Focus:** Macroeconomics & Financial Policy Research
