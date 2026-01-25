@@ -7,74 +7,60 @@ from datetime import datetime, timedelta
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="📜")
 
-# --- ABSOLUTE CONTRAST OVERRIDE ---
+# --- FORCED HIGH-CONTRAST CSS ---
 st.markdown("""
     <style>
-    /* 1. Universal Background */
-    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    /* 1. Global Reset - Force everything to Black/Parchment regardless of system theme */
+    :root {
+        --primary-color: #000000 !important;
+        --background-color: #F2EBE3 !important;
+        --secondary-background-color: #E8E0D5 !important;
+        --text-color: #000000 !important;
+    }
+
+    /* 2. Main Backgrounds */
+    .stApp, [data-testid="stAppViewContainer"] {
         background-color: #F2EBE3 !important;
     }
     
-    /* 2. Sidebar Background & Border */
     [data-testid="stSidebar"] {
         background-color: #E8E0D5 !important;
-        border-right: 3px solid #D1C7B7 !important;
     }
 
-    /* 3. FORCING ALL LABELS TO BLACK - Nuclear Option */
-    /* This targets the actual label containers for Sliders, Selectboxes, and Radios */
-    .stWidgetLabel p, 
-    label, 
+    /* 3. The "Nuclear" Label Fix - Targets all possible widget label types */
+    /* This specific selector targets the span and p tags inside labels that Streamlit uses */
+    span[data-testid="stWidgetLabel"] p, 
     div[data-testid="stWidgetLabel"] p,
+    label p,
     .stSelectbox label p,
     .stSlider label p,
-    .stRadio label p {
+    .stRadio label p,
+    .stMetric label div {
         color: #000000 !important;
-        font-weight: 900 !important;
+        font-weight: 800 !important;
         font-size: 1.1rem !important;
-        opacity: 1 !important;
+        -webkit-text-fill-color: #000000 !important; /* Forces color on some browsers */
     }
 
-    /* 4. Global Text Styling */
-    html, body, .stMarkdown, p, li, span {
-        color: #1A1C1E !important; 
+    /* 4. Ensuring all standard text is black */
+    .stMarkdown, p, li, span, h1, h2, h3 {
+        color: #000000 !important;
         font-family: 'Georgia', serif !important;
     }
 
-    /* 5. Metric Cards */
-    div[data-testid="stMetric"] {
-        background-color: #FAF9F6;
-        border: 2px solid #D1C7B7;
-        padding: 1.5rem;
-        border-radius: 4px;
-    }
-    [data-testid="stMetricLabel"] { 
-        color: #493D31 !important; 
-        font-weight: 700 !important; 
-    }
-    [data-testid="stMetricValue"] { 
-        color: #000000 !important; 
-        font-weight: 800 !important;
-    }
+    /* 5. Metrics Fix */
+    [data-testid="stMetricLabel"] { color: #31261D !important; font-weight: 700 !important; }
+    [data-testid="stMetricValue"] { color: #000000 !important; font-weight: 800 !important; }
 
-    /* 6. Headers */
-    h1, h2, h3 { 
-        color: #000000 !important; 
-        font-weight: 900 !important;
-        border-bottom: 2px solid #D1C7B7;
-    }
-    
-    /* 7. Radio Button Options Text */
-    div[data-testid="stMarkdownContainer"] p {
-        color: #000000 !important;
-        font-weight: 500;
+    /* 6. Slider track/handle visibility */
+    .stSlider [data-baseweb="slider"] {
+        background-color: #D1C7B7 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 @st.cache_data
 def load_data():
-    # Use the filename you provided
     file_name = 'EM_Macro_Data_India_SG_UK.xlsx'
     if not os.path.exists(file_name):
         st.error("Data source missing."); st.stop()
@@ -131,9 +117,9 @@ else:
 
 # --- ANALYTICS ---
 m_map = {
-    "India": {"cpi": "CPI_India", "rate": "Policy_India", "beta": 0.12},
-    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "beta": 0.07},
-    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore", "beta": 0.10}
+    "India": {"cpi": "CPI_India", "rate": "Policy_India"},
+    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK"},
+    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore"}
 }
 m = m_map[market]
 valid_df = df.dropna(subset=[m['cpi'], m['rate']])
@@ -168,9 +154,8 @@ fig.add_trace(go.Scatter(x=[latest['Date']], y=[fair_value], mode='markers',
                          name="Model Fair Value"))
 
 fig.update_layout(
-    title=dict(text="Historical Trend vs. Model Projection", font=dict(size=22, color='#000000')),
     height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-    margin=dict(t=80, b=100),
+    margin=dict(t=30, b=100),
     legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center", font=dict(size=14, color="#000000")),
     xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#000000')), 
     yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Rate (%)", tickfont=dict(color='#000000'))
