@@ -1,35 +1,40 @@
-# 🏛️ Quantitative Policy Lab: Monetary Policy Simulator
+# 🏛️ Quantitative Policy Lab
+### *A Monetary Policy Simulation & Teaching Tool*
 
-An interactive macroeconomic research terminal designed to simulate Central Bank interest rate decisions using the **Taylor Rule** framework. This tool allows researchers and students to visualize the impact of inflation shocks, growth gaps, and differing banking philosophies on terminal interest rates.
-
-## 🌟 Key Features
-* **Multi-Market Analysis:** Real-time simulations for India, UK, and Singapore.
-* **Macro Scenario Toggles:** Instantly simulate "Stagflation," "Soft Landings," or "Global Recessions."
-* **Custom Policy Calibration:** Manually adjust Neutral Real Rates ($r^*$), Inflation Targets, and Smoothing factors.
-* **Visual Intelligence:** High-fidelity Plotly charts comparing historical policy rates against model fair-value projections.
-
-## 🛠️ The Framework
-The core engine utilizes the Taylor Rule equation:
-$$i = r^* + \pi + \lambda_{\pi}(\pi - \pi^*) + \lambda_{y}(y - y^*)$$
-
-Where:
-* $i$: Suggested Nominal Policy Rate
-* $r^*$: Neutral Real Interest Rate
-* $\pi$: Current Inflation
-* $\pi^*$: Inflation Target
-* $y - y^*$: The Output Gap
+This laboratory provides an interactive interface for analyzing Central Bank behavior across different economic regimes. Developed as a graduate-level research tool, it utilizes the **Taylor Rule** framework to bridge the gap between macroeconomic theory and real-world policy application.
 
 
 
-## 🚀 Getting Started
+## 🕊️ Design Philosophy
+Unlike typical high-contrast financial terminals, this lab is built with a **"Gentle Research"** aesthetic—utilizing a parchment-and-slate palette to focus on clarity, readability, and academic rigor.
 
-### Prerequisites
-* Python 3.8+
-* Streamlit
-* Plotly
-* Pandas
+## 🧠 Interactive Teaching Modules
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone [https://github.com/your-username/policy-lab.git](https://github.com/your-username/policy-lab.git)
+### 1. Macro Scenario Simulator
+Allows users to instantly observe how different economic shocks force policy trade-offs:
+* **Stagflation Shock:** High inflation + Negative output gap.
+* **Global Recession:** Deflationary pressure + Deep output gap.
+* **Soft Landing:** Inflation convergence with minimal growth disruption.
+
+### 2. Behavioral Calibration
+Users can toggle between central banking philosophies:
+* **Inflation Hawk:** Prioritizes price stability with high sensitivity to CPI deviations.
+* **Dual Mandate:** Balances inflation targets with economic growth (Output Gap).
+* **Standard:** A balanced historical Taylor approach.
+
+### 3. Structural Parameters
+* **Neutral Rate ($r^*$):** Adjust the "anchor" rate where the economy is in equilibrium.
+* **Policy Inertia:** Demonstrates "Smoothing," showing why banks move in small increments (e.g., 25bps) rather than jumping to fair value instantly.
+
+## 🛠️ Technical Implementation
+* **Language:** Python
+* **Interface:** Streamlit (Custom CSS for Parchment UI)
+* **Visuals:** Plotly (High-visibility academic styling)
+* **Framework:** Taylor Rule Monetary Model
+
+## 📊 Analytical Indicators
+The terminal calculates a **Policy Gap** in **Basis Points (bps)**—the industry standard for JPMC, Goldman Sachs, and BCG—indicating whether a market is "over-tightened" or "behind the curve."
+
+---
+**Developed by:** [Your Name]  
+**Focus:** Macroeconomics & Financial Policy Research
