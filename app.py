@@ -7,52 +7,48 @@ from datetime import datetime, timedelta
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="📜")
 
-# --- THE DEFINITIVE BLACK TEXT FIX ---
+# --- RESILIENT CSS (Works in Light & Dark Mode) ---
 st.markdown("""
     <style>
-    /* 1. Force the App Background */
+    /* 1. Define a Mid-Tone color for visibility in both modes */
+    :root {
+        --resilient-teal: #2E5077;
+    }
+
+    /* 2. Force the App Background for a consistent "Paper" feel */
     .stApp {
         background-color: #F2EBE3 !important;
     }
 
-    /* 2. THE NUCLEAR OPTION: Force every single text element to Black */
-    /* This overrides Streamlit's internal 'white' theme variables */
-    html, body, [data-testid="stWidgetLabel"], [data-testid="stMarkdownContainer"], p, label, span, div {
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important;
-    }
-
-    /* 3. Specific fix for Slider and Toggle titles */
-    /* Streamlit uses 'stWidgetLabel' for these specifically */
-    [data-testid="stWidgetLabel"] p {
-        color: #000000 !important;
+    /* 3. The Multi-Mode Label Fix */
+    /* Using a specific hex code that is visible on both dark and light surfaces */
+    [data-testid="stWidgetLabel"] p, 
+    .stSelectbox label p, 
+    .stSlider label p, 
+    .stRadio label p,
+    label p {
+        color: #2E5077 !important; 
         font-weight: 800 !important;
         font-size: 1.1rem !important;
+        forced-color-adjust: none !important;
     }
 
-    /* 4. Sidebar Specifics */
+    /* 4. Global Text - Deep Slate (Readable everywhere) */
+    html, body, .stMarkdown, p, li, span {
+        color: #1A1C1E !important;
+        font-family: 'Georgia', serif !important;
+    }
+
+    /* 5. Sidebar separation */
     [data-testid="stSidebar"] {
         background-color: #E8E0D5 !important;
         border-right: 2px solid #D1C7B7 !important;
     }
-    
-    [data-testid="stSidebar"] .stMarkdown p {
-        color: #000000 !important;
-        font-weight: 700 !important;
-    }
 
-    /* 5. Metrics */
+    /* 6. Metrics */
     [data-testid="stMetricValue"] {
-        color: #000000 !important;
-        font-weight: 900 !important;
-    }
-    [data-testid="stMetricLabel"] p {
-        color: #31261D !important;
-    }
-
-    /* 6. Chart Tooltip Fix */
-    .js-plotly-plot .plotly .cursor-crosshair {
-        color: black !important;
+        color: #2E5077 !important;
+        font-weight: 800 !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -142,27 +138,27 @@ c4.metric("Taylor Fair Value", f"{fair_value:.2f}%", f"{gap_bps:+.0f} bps", delt
 
 # --- CHART ---
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Policy Rate", line=dict(color="#000000", width=3)))
+fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Policy Rate", line=dict(color="#2E5077", width=3)))
 fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['cpi']], name="Inflation (YoY)", line=dict(color="#A68A64", width=2, dash='dot')))
 fig.add_trace(go.Scatter(x=[latest['Date']], y=[fair_value], mode='markers', 
-                         marker=dict(size=14, color='#BC6C25', symbol='diamond', line=dict(width=2, color='#000000')),
+                         marker=dict(size=14, color='#BC6C25', symbol='diamond', line=dict(width=2, color='#1A1C1E')),
                          name="Model Fair Value"))
 
 fig.update_layout(
     height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
     margin=dict(t=30, b=100),
-    legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center", font=dict(size=14, color="#000000")),
-    xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#000000')), 
-    yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Rate (%)", tickfont=dict(color='#000000'))
+    legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center", font=dict(size=14, color="#1A1C1E")),
+    xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#1A1C1E')), 
+    yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Rate (%)", tickfont=dict(color='#1A1C1E'))
 )
 st.plotly_chart(fig, use_container_width=True)
 
 # --- INSIGHTS ---
 st.divider()
 st.markdown(f"""
-    <div style="background-color: #E8E0D5; border-left: 10px solid #BC6C25; padding: 25px; border-radius: 4px;">
-        <h3 style="color: #000000; margin-top: 0;">Analysis: {gap_bps:+.0f} bps Deviation</h3>
-        <p style="font-size: 1.15rem; color: #000000;">
+    <div style="background-color: #E8E0D5; border-left: 10px solid #2E5077; padding: 25px; border-radius: 4px;">
+        <h3 style="color: #2E5077; margin-top: 0;">Analysis: {gap_bps:+.0f} bps Deviation</h3>
+        <p style="font-size: 1.15rem; color: #1A1C1E;">
             Under the current <b>{philosophy}</b> mandate, the model suggests an interest rate anchor of <b>{fair_value:.2f}%</b>.
         </p>
     </div>
