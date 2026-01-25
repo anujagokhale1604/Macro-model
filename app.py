@@ -7,71 +7,74 @@ from datetime import datetime, timedelta
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="📜")
 
-# --- CONTRAST FIX: PARCHMENT & DEEP CHARCOAL ---
+# --- ABSOLUTE CONTRAST OVERRIDE ---
 st.markdown("""
     <style>
-    /* 1. Force the main background to a solid warm parchment */
-    .stApp {
-        background-color: #F2EBE3 !important;
-    }
-    [data-testid="stAppViewContainer"] {
+    /* 1. Universal Background */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #F2EBE3 !important;
     }
     
-    /* 2. Sidebar - Slightly deeper tan for separation */
+    /* 2. Sidebar Background & Border */
     [data-testid="stSidebar"] {
         background-color: #E8E0D5 !important;
-        border-right: 2px solid #D1C7B7;
+        border-right: 3px solid #D1C7B7 !important;
     }
 
-    /* 3. Global Text: Deep Charcoal for Maximum Readability */
-    html, body, [class*="css"], .stMarkdown, p, li, span, .stHeader {
+    /* 3. FORCING ALL LABELS TO BLACK - Nuclear Option */
+    /* This targets the actual label containers for Sliders, Selectboxes, and Radios */
+    .stWidgetLabel p, 
+    label, 
+    div[data-testid="stWidgetLabel"] p,
+    .stSelectbox label p,
+    .stSlider label p,
+    .stRadio label p {
+        color: #000000 !important;
+        font-weight: 900 !important;
+        font-size: 1.1rem !important;
+        opacity: 1 !important;
+    }
+
+    /* 4. Global Text Styling */
+    html, body, .stMarkdown, p, li, span {
         color: #1A1C1E !important; 
         font-family: 'Georgia', serif !important;
     }
 
-    /* 4. Explicitly color all Widget Labels (Sliders, Selectboxes) */
-    .stWidgetLabel p, label, [data-testid="stWidgetLabel"] {
-        color: #1A1C1E !important;
-        font-weight: 700 !important;
-        font-size: 1rem !important;
-    }
-
-    /* 5. Metric Cards: Cream background with Dark Text */
+    /* 5. Metric Cards */
     div[data-testid="stMetric"] {
         background-color: #FAF9F6;
-        border: 1px solid #D1C7B7;
+        border: 2px solid #D1C7B7;
         padding: 1.5rem;
         border-radius: 4px;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
     }
     [data-testid="stMetricLabel"] { 
         color: #493D31 !important; 
-        font-weight: 600 !important; 
-        text-transform: uppercase;
+        font-weight: 700 !important; 
     }
     [data-testid="stMetricValue"] { 
-        color: #1A1C1E !important; 
+        color: #000000 !important; 
         font-weight: 800 !important;
     }
 
     /* 6. Headers */
     h1, h2, h3 { 
-        color: #31261D !important; 
-        font-weight: 800 !important;
-        border-bottom: 1px solid #D1C7B7;
-        padding-bottom: 5px;
+        color: #000000 !important; 
+        font-weight: 900 !important;
+        border-bottom: 2px solid #D1C7B7;
     }
     
-    /* 7. Radio buttons and inputs */
+    /* 7. Radio Button Options Text */
     div[data-testid="stMarkdownContainer"] p {
-        color: #1A1C1E !important;
+        color: #000000 !important;
+        font-weight: 500;
     }
     </style>
     """, unsafe_allow_html=True)
 
 @st.cache_data
 def load_data():
+    # Use the filename you provided
     file_name = 'EM_Macro_Data_India_SG_UK.xlsx'
     if not os.path.exists(file_name):
         st.error("Data source missing."); st.stop()
@@ -96,7 +99,7 @@ st.sidebar.subheader("⚡ Macro Scenarios")
 scenario = st.sidebar.selectbox("Choose a Scenario", 
     ["Current Baseline", "Soft Landing", "Stagflation Shock", "Global Recession"])
 
-# Scenario Logic
+# Scenario Presets
 if scenario == "Soft Landing":
     r_star_init, target_inf_init, gap_init, phil_idx = 1.5, 2.0, 0.5, 0
 elif scenario == "Stagflation Shock":
@@ -156,26 +159,21 @@ c2.metric("Target Level", f"{target_inf:.1f}%")
 c3.metric("Current Rate", f"{curr_rate:.2f}%")
 c4.metric("Taylor Fair Value", f"{fair_value:.2f}%", f"{gap_bps:+.0f} bps", delta_color="inverse")
 
-# --- CHART (High Contrast) ---
+# --- CHART ---
 fig = go.Figure()
-
-fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], 
-                         name="Policy Rate", line=dict(color="#1A1C1E", width=3)))
-fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['cpi']], 
-                         name="Inflation (YoY)", line=dict(color="#A68A64", width=2, dash='dot')))
+fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Policy Rate", line=dict(color="#000000", width=3)))
+fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['cpi']], name="Inflation (YoY)", line=dict(color="#A68A64", width=2, dash='dot')))
 fig.add_trace(go.Scatter(x=[latest['Date']], y=[fair_value], mode='markers', 
-                         marker=dict(size=14, color='#BC6C25', symbol='diamond', line=dict(width=2, color='#1A1C1E')),
+                         marker=dict(size=14, color='#BC6C25', symbol='diamond', line=dict(width=2, color='#000000')),
                          name="Model Fair Value"))
 
 fig.update_layout(
-    title=dict(text="Historical Trend vs. Model Projection", font=dict(size=22, color='#1A1C1E')),
-    height=500,
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(0,0,0,0)',
+    title=dict(text="Historical Trend vs. Model Projection", font=dict(size=22, color='#000000')),
+    height=500, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
     margin=dict(t=80, b=100),
-    legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center", font=dict(size=14, color="#1A1C1E")),
-    xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#1A1C1E')), 
-    yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Rate (%)", tickfont=dict(color='#1A1C1E'))
+    legend=dict(orientation="h", y=-0.2, x=0.5, xanchor="center", font=dict(size=14, color="#000000")),
+    xaxis=dict(showgrid=True, gridcolor="#D1C7B7", tickfont=dict(color='#000000')), 
+    yaxis=dict(showgrid=True, gridcolor="#D1C7B7", title="Rate (%)", tickfont=dict(color='#000000'))
 )
 st.plotly_chart(fig, use_container_width=True)
 
@@ -183,10 +181,10 @@ st.plotly_chart(fig, use_container_width=True)
 st.divider()
 st.markdown(f"""
     <div style="background-color: #E8E0D5; border-left: 10px solid #BC6C25; padding: 25px; border-radius: 4px;">
-        <h3 style="color: #1A1C1E; margin-top: 0;">Analysis: {gap_bps:+.0f} bps Deviation</h3>
-        <p style="font-size: 1.15rem; color: #1A1C1E;">
+        <h3 style="color: #000000; margin-top: 0;">Analysis: {gap_bps:+.0f} bps Deviation</h3>
+        <p style="font-size: 1.15rem; color: #000000;">
             The simulation indicates that under the <b>{philosophy}</b> mandate, the interest rate should gravitate 
-            toward <b>{fair_value:.2f}%</b>. This creates a gap of <b>{gap_bps:+.0f} basis points</b> relative to the current spot rate.
+            toward <b>{fair_value:.2f}%</b>.
         </p>
     </div>
     """, unsafe_allow_html=True)
