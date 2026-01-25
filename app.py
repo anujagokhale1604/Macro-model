@@ -14,19 +14,14 @@ def load_data():
 
     xl = pd.ExcelFile(file_name)
     
+    # We will search for a sheet that has 'Date' and country names
     for sheet in xl.sheet_names:
         df = pd.read_excel(xl, sheet_name=sheet)
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Check if 'Date' exists in this sheet
         if 'Date' in df.columns:
-            # MAGIC FIX: errors='coerce' turns crazy dates into 'NaT' instead of crashing
             df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-            
-            # Remove any rows where Date became NaT (the stray text/total rows)
             df = df.dropna(subset=['Date'])
-            
-            # Sort by date so the chart flows correctly
             df = df.sort_values('Date')
             return df, sheet
             
@@ -37,34 +32,51 @@ df, used_sheet = load_data()
 
 # --- APP UI ---
 st.title("🏦 Macroeconomic Research Terminal")
+st.caption(f"Analyzing Data from Sheet: **{used_sheet}**")
+
 market = st.sidebar.selectbox("Select Market", ["India", "UK", "Singapore"])
 
+# --- UPDATED COLUMN MAP ---
+# Based on your feedback, the inflation columns are just the country names.
+# Note: We are using the same column for both lines for a moment just to 
+# get the chart to appear. If you have another sheet for 'Policy Rates', 
+# let me know!
 m_map = {
-    "India": {"cpi": "CPI_India", "rate": "Policy_India"},
-    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK"},
-    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore"}
+    "India": {"cpi": "India"},
+    "UK": {"cpi": "UK"},
+    "Singapore": {"cpi": "Singapore"}
 }
 
 try:
     m = m_map[market]
+    col_name = m['cpi']
+    
     # Ensure data is numeric
-    df[m['cpi']] = pd.to_numeric(df[m['cpi']], errors='coerce')
-    df[m['rate']] = pd.to_numeric(df[m['rate']], errors='coerce')
+    df[col_name] = pd.to_numeric(df[col_name], errors='coerce')
+    plot_df = df.dropna(subset=[col_name])
     
-    # Drop empty values for the chart
-    plot_df = df.dropna(subset=[m['cpi'], m['rate']])
-    
+    # Create the Chart
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=plot_df['Date'], y=plot_df[m['cpi']], name="Inflation", line=dict(color="#d32f2f")))
-    fig.add_trace(go.Scatter(x=plot_df['Date'], y=plot_df[m['rate']], name="Policy Rate", line=dict(color="#1a237e")))
+    fig.add_trace(go.Scatter(
+        x=plot_df['Date'], 
+        y=plot_df[col_name], 
+        name=f"{market} Inflation", 
+        line=dict(color="#d32f2f", width=3)
+    ))
     
-    fig.update_layout(template="plotly_white", hovermode="x unified")
+    fig.update_layout(
+        title=f"Historical Inflation Trend: {market}",
+        template="plotly_white", 
+        hovermode="x unified",
+        xaxis_title="Timeline",
+        yaxis_title="Percentage (%)"
+    )
     st.plotly_chart(fig, use_container_width=True)
     
-    # Metric for the latest available data
-    last_row = plot_df.iloc[-1]
-    st.metric(f"Latest {market} CPI", f"{last_row[m['cpi']]:.2f}%")
+    # Latest Data Metric
+    last_val = plot_df[col_name].iloc[-1]
+    st.metric(label=f"Latest {market} Reading", value=f"{last_val:.2f}%")
     
 except Exception as e:
-    st.warning(f"Formatting issues on sheet '{used_sheet}': {e}")
-    st.write("Found Columns:", list(df.columns))
+    st.error(f"Mapping Error: {e}")
+    st.write("Current Sheet Columns:", list(df.columns))
