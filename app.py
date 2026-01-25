@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 from scipy.stats import pearsonr
-
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="📈")
 
