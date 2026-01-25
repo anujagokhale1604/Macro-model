@@ -5,25 +5,31 @@ import os
 
 st.set_page_config(page_title="Macro Policy Lab", layout="wide")
 
-# --- DATA LOADING ---
 @st.cache_data
 def load_data():
-    # Use the exact filename of your uploaded Excel file
     file_name = 'EM_Macro_Data_India_SG_UK.xlsx'
-    
     if os.path.exists(file_name):
-        # We use pd.read_excel because it is an .xlsx file
+        # We read the file
         df = pd.read_excel(file_name)
+        
+        # CLEANING: This removes hidden spaces from column names
+        df.columns = df.columns.str.strip()
+        
+        # DEBUGGING: If 'Date' is still missing, show the user the names
+        if 'Date' not in df.columns:
+            st.error(f"⚠️ Column 'Date' not found.")
+            st.write("Your Excel columns are named:", list(df.columns))
+            st.stop()
+            
         df['Date'] = pd.to_datetime(df['Date'])
         return df
     else:
-        st.error(f"⚠️ Could not find {file_name}")
-        st.write("Files currently in your GitHub folder:", os.listdir("."))
+        st.error(f"Could not find {file_name}")
         st.stop()
 
 df = load_data()
 
-# --- DASHBOARD ---
+# --- THE REST OF THE APP ---
 st.title("🏦 Macroeconomic Research Terminal")
 market = st.sidebar.selectbox("Select Market", ["India", "UK", "Singapore"])
 
@@ -32,12 +38,17 @@ m_map = {
     "UK": {"cpi": "CPI_UK", "rate": "Policy_UK"},
     "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore"}
 }
-m = m_map[market]
 
-st.metric(f"Latest {market} CPI", f"{df[m['cpi']].iloc[-1]:.2f}%")
-
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="Inflation", line=dict(color="red")))
-fig.add_trace(go.Scatter(x=df['Date'], y=df[m['rate']], name="Policy Rate", line=dict(color="blue")))
-fig.update_layout(template="plotly_white")
-st.plotly_chart(fig, use_container_width=True)
+# Final check: Make sure the market columns exist too
+try:
+    m = m_map[market]
+    st.metric(f"Latest {market} CPI", f"{df[m['cpi']].iloc[-1]:.2f}%")
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="Inflation", line=dict(color="red")))
+    fig.add_trace(go.Scatter(x=df['Date'], y=df[m['rate']], name="Policy Rate", line=dict(color="blue")))
+    fig.update_layout(template="plotly_white")
+    st.plotly_chart(fig, use_container_width=True)
+except KeyError as e:
+    st.error(f"⚠️ Column {e} not found in Excel. Check your header names!")
+    st.write("Available columns:", list(df.columns))
