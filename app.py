@@ -7,39 +7,53 @@ from datetime import datetime, timedelta
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="📜")
 
-# --- THE "BLACK LABEL" CSS OVERRIDE ---
+# --- THE DEFINITIVE BLACK TEXT FIX ---
 st.markdown("""
     <style>
-    /* 1. Global Backgrounds */
-    .stApp, [data-testid="stAppViewContainer"] {
+    /* 1. Force the App Background */
+    .stApp {
         background-color: #F2EBE3 !important;
     }
+
+    /* 2. THE NUCLEAR OPTION: Force every single text element to Black */
+    /* This overrides Streamlit's internal 'white' theme variables */
+    html, body, [data-testid="stWidgetLabel"], [data-testid="stMarkdownContainer"], p, label, span, div {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+
+    /* 3. Specific fix for Slider and Toggle titles */
+    /* Streamlit uses 'stWidgetLabel' for these specifically */
+    [data-testid="stWidgetLabel"] p {
+        color: #000000 !important;
+        font-weight: 800 !important;
+        font-size: 1.1rem !important;
+    }
+
+    /* 4. Sidebar Specifics */
     [data-testid="stSidebar"] {
         background-color: #E8E0D5 !important;
+        border-right: 2px solid #D1C7B7 !important;
+    }
+    
+    [data-testid="stSidebar"] .stMarkdown p {
+        color: #000000 !important;
+        font-weight: 700 !important;
     }
 
-    /* 2. TARGETING TOGGLE/SLIDER/SELECTBOX TITLES */
-    /* This targets the specific paragraph tag inside the label container */
-    div[data-testid="stWidgetLabel"] p, 
-    .stSelectbox label p, 
-    .stSlider label p, 
-    .stRadio label p,
-    label p {
+    /* 5. Metrics */
+    [data-testid="stMetricValue"] {
         color: #000000 !important;
         font-weight: 900 !important;
-        font-size: 1.1rem !important;
-        text-shadow: none !important;
+    }
+    [data-testid="stMetricLabel"] p {
+        color: #31261D !important;
     }
 
-    /* 3. Global Text styling */
-    .stMarkdown, p, li, span, h1, h2, h3 {
-        color: #000000 !important;
-        font-family: 'Georgia', serif !important;
+    /* 6. Chart Tooltip Fix */
+    .js-plotly-plot .plotly .cursor-crosshair {
+        color: black !important;
     }
-
-    /* 4. Metric Styling */
-    [data-testid="stMetricLabel"] { color: #31261D !important; font-weight: 700 !important; }
-    [data-testid="stMetricValue"] { color: #000000 !important; font-weight: 800 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -107,12 +121,10 @@ m_map = {
 }
 m = m_map[market]
 valid_df = df.dropna(subset=[m['cpi'], m['rate']])
-
 latest_date = valid_df['Date'].max()
 filtered_df = valid_df[valid_df['Date'] >= (latest_date - timedelta(days=5*365))]
 latest = valid_df.iloc[-1]
 
-# Math
 base_inf = latest[m['cpi']]
 curr_rate = latest[m['rate']]
 raw_fv = r_star + base_inf + inf_weight * (base_inf - target_inf) + 0.5 * output_gap
