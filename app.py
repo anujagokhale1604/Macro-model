@@ -9,47 +9,34 @@ st.set_page_config(page_title="Macro Policy Lab", layout="wide")
 def load_data():
     file_name = 'EM_Macro_Data_India_SG_UK.xlsx'
     if not os.path.exists(file_name):
-        st.error(f"File {file_name} not found in GitHub.")
+        st.error(f"File {file_name} not found.")
         st.stop()
 
     xl = pd.ExcelFile(file_name)
     
-    # Try EVERY sheet in the Excel file
     for sheet in xl.sheet_names:
         df = pd.read_excel(xl, sheet_name=sheet)
-        
-        # Clean up column names (remove hidden spaces/newlines)
         df.columns = [str(c).strip() for c in df.columns]
         
-        # Look for 'Date' in the headers OR in the first few rows
+        # Check if 'Date' exists in this sheet
         if 'Date' in df.columns:
+            # MAGIC FIX: errors='coerce' turns crazy dates into 'NaT' instead of crashing
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            
+            # Remove any rows where Date became NaT (the stray text/total rows)
             df = df.dropna(subset=['Date'])
-            df['Date'] = pd.to_datetime(df['Date'])
+            
+            # Sort by date so the chart flows correctly
+            df = df.sort_values('Date')
             return df, sheet
             
-        # If 'Date' wasn't in the header, maybe it's in the first row of data?
-        # We search the first 5 rows to find the headers
-        for i in range(min(len(df), 5)):
-            if "Date" in df.iloc[i].values:
-                df.columns = df.iloc[i].str.strip()
-                df = df[i+1:].reset_index(drop=True)
-                df = df.dropna(subset=['Date'])
-                df['Date'] = pd.to_datetime(df['Date'])
-                return df, sheet
-
-    # If we get here, we found nothing
-    st.error("⚠️ DATA FORMAT ERROR")
-    st.write("I searched all tabs but couldn't find a column named 'Date'.")
-    st.write("Current Tabs in Excel:", xl.sheet_names)
-    st.info("Check: Is 'Date' written exactly like that in Row 1 of your Excel sheet?")
+    st.error("Could not find a valid 'Date' column.")
     st.stop()
 
 df, used_sheet = load_data()
 
 # --- APP UI ---
 st.title("🏦 Macroeconomic Research Terminal")
-st.caption(f"Connected to sheet: **{used_sheet}**")
-
 market = st.sidebar.selectbox("Select Market", ["India", "UK", "Singapore"])
 
 m_map = {
@@ -60,17 +47,24 @@ m_map = {
 
 try:
     m = m_map[market]
-    # Force numbers to be numbers (Excel sometimes keeps them as text)
+    # Ensure data is numeric
     df[m['cpi']] = pd.to_numeric(df[m['cpi']], errors='coerce')
     df[m['rate']] = pd.to_numeric(df[m['rate']], errors='coerce')
     
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name=f"{market} CPI (Inflation)", line=dict(color="#d32f2f")))
-    fig.add_trace(go.Scatter(x=df['Date'], y=df[m['rate']], name=f"{market} Policy Rate", line=dict(color="#1a237e")))
+    # Drop empty values for the chart
+    plot_df = df.dropna(subset=[m['cpi'], m['rate']])
     
-    fig.update_layout(template="plotly_white", hovermode="x unified", legend=dict(orientation="h", y=1.1))
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=plot_df['Date'], y=plot_df[m['cpi']], name="Inflation", line=dict(color="#d32f2f")))
+    fig.add_trace(go.Scatter(x=plot_df['Date'], y=plot_df[m['rate']], name="Policy Rate", line=dict(color="#1a237e")))
+    
+    fig.update_layout(template="plotly_white", hovermode="x unified")
     st.plotly_chart(fig, use_container_width=True)
     
+    # Metric for the latest available data
+    last_row = plot_df.iloc[-1]
+    st.metric(f"Latest {market} CPI", f"{last_row[m['cpi']]:.2f}%")
+    
 except Exception as e:
-    st.warning(f"Columns not found in sheet '{used_sheet}'.")
-    st.write("Available columns in this sheet:", list(df.columns))
+    st.warning(f"Formatting issues on sheet '{used_sheet}': {e}")
+    st.write("Found Columns:", list(df.columns))
