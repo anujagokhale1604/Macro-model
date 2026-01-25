@@ -5,46 +5,56 @@ import os
 from datetime import datetime, timedelta
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="🏛️")
+st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="🏦")
 
-# --- REFINED PROFESSIONAL CSS (Soft & Crisp) ---
+# --- SOFTER PROFESSIONAL CSS (Slate, Sage, and Off-White) ---
 st.markdown("""
     <style>
-    /* Soft Background */
-    .main { background-color: #FDFDFD !important; }
+    /* Global Background */
+    .main { background-color: #fdfdfd !important; }
     
-    /* Global Text Visibility Fix */
-    html, body, [class*="css"], .stMarkdown, p, label {
-        color: #2C3E50 !important; 
-        font-family: 'Inter', sans-serif !important;
+    /* Widget Labels & Text Visibility */
+    .stWidgetLabel p, label, .stMarkdown p, .stCaption {
+        color: #334155 !important; 
+        font-weight: 600 !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
     }
 
     /* Professional Metric Cards */
     div[data-testid="stMetric"] {
-        background-color: #FFFFFF;
-        border: 1px solid #E9ECEF;
-        padding: 20px;
+        background-color: #ffffff;
+        border: 1px solid #e2e8f0;
+        padding: 1.5rem;
         border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
-    [data-testid="stMetricLabel"] { font-size: 0.9rem !important; font-weight: 500 !important; color: #64748B !important; }
-    [data-testid="stMetricValue"] { font-size: 1.8rem !important; font-weight: 700 !important; color: #1E293B !important; }
+    [data-testid="stMetricLabel"] { 
+        color: #64748b !important; 
+        font-weight: 500 !important; 
+        font-size: 0.85rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    [data-testid="stMetricValue"] { 
+        color: #1e293b !important; 
+        font-weight: 700 !important; 
+    }
 
-    /* Sidebar - Clean Slate */
+    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
-        background-color: #F1F5F9 !important;
-        border-right: 1px solid #E2E8F0;
+        background-color: #f1f5f9 !important;
+        border-right: 1px solid #e2e8f0;
     }
     
-    /* Heading Colors */
-    h1, h2, h3 { color: #0F172A !important; letter-spacing: -0.02em; }
-
-    /* Slider & Widget Label Specific Fix */
-    .stWidgetLabel p, label {
-        color: #334155 !important;
-        font-weight: 600 !important;
-        margin-bottom: 8px !important;
+    /* Headers */
+    h1, h2, h3 { 
+        color: #0f172a !important; 
+        font-weight: 700 !important;
+        letter-spacing: -0.02em;
     }
+    
+    /* Slider & Radio Selection Highlighting */
+    .stSlider > div > div > div > div { background-color: #64748b !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -61,44 +71,52 @@ def load_data():
 
 df = load_data()
 
-# --- SIDEBAR: INTERACTIVE TEACHING TOOLS ---
-st.sidebar.title("👨‍🏫 Lab Controls")
+# --- SIDEBAR: INTERACTIVE TEACHING LAB ---
+st.sidebar.title("👨‍🏫 Policy Simulation Lab")
 
 st.sidebar.subheader("📍 Target Economy")
-market = st.sidebar.selectbox("Select Country", ["India", "UK", "Singapore"], label_visibility="collapsed")
+market = st.sidebar.selectbox("Market Selection", ["India", "UK", "Singapore"], label_visibility="collapsed")
 
 st.sidebar.divider()
 st.sidebar.subheader("📅 Observation Window")
-horizon = st.sidebar.radio("Timeline", ["1 Year", "5 Years", "Full History"], index=1, horizontal=True)
+horizon = st.sidebar.radio("Timeline View", ["1 Year", "5 Years", "Full History"], index=1, horizontal=True)
 
 st.sidebar.divider()
-st.sidebar.subheader("🏗️ Model Framework")
-philosophy = st.sidebar.selectbox("Central Bank Stance", 
-    ["Neutral / Standard", "Aggressive Hawk", "Growth Oriented (Dovish)", "Custom"])
+st.sidebar.subheader("🏗️ Structural Parameters")
+# Re-adding the key toggles for interactivity
+r_star = st.sidebar.slider("Neutral Real Rate (r*)", 0.0, 5.0, 1.5, help="The real interest rate that is neither expansionary nor contractionary.")
+target_inf = st.sidebar.slider("Inflation Target (%)", 1.0, 6.0, 4.0 if market == "India" else 2.0)
+output_gap = st.sidebar.slider("Simulated Output Gap (%)", -5.0, 5.0, 0.0, help="Positive = Overheating; Negative = Recessionary Gap.")
 
-if philosophy == "Aggressive Hawk":
-    inf_weight, y_weight, smoothing = 2.0, 0.2, 0.1
-elif philosophy == "Growth Oriented (Dovish)":
-    inf_weight, y_weight, smoothing = 1.0, 1.2, 0.5
+st.sidebar.divider()
+st.sidebar.subheader("🧠 Behavioral Calibration")
+philosophy = st.sidebar.selectbox("Central Bank Philosophy", ["Standard Taylor", "Inflation Hawk", "Dual Mandate", "Custom"])
+
+if philosophy == "Inflation Hawk":
+    inf_weight, y_weight, smoothing = 2.2, 0.1, 0.1
+elif philosophy == "Dual Mandate":
+    inf_weight, y_weight, smoothing = 1.2, 1.2, 0.4
+elif philosophy == "Neutral / Standard":
+    inf_weight, y_weight, smoothing = 1.5, 0.5, 0.2
 else:
-    inf_weight = st.sidebar.slider("Inflation Response (λπ)", 0.5, 2.5, 1.5)
-    y_weight = st.sidebar.slider("Output Gap Response (λy)", 0.0, 1.5, 0.5)
+    inf_weight = st.sidebar.slider("Inflation Sensitivity (λπ)", 0.5, 3.0, 1.5)
+    y_weight = st.sidebar.slider("Growth Sensitivity (λy)", 0.0, 2.0, 0.5)
     smoothing = st.sidebar.slider("Policy Inertia (Smoothing)", 0.0, 1.0, 0.2)
 
 st.sidebar.divider()
-st.sidebar.subheader("⚡ External Variables")
-oil_shock = st.sidebar.slider("Imported Energy Shock (%)", -50, 100, 0)
-r_star = st.sidebar.slider("Neutral Real Rate (r*)", 0.0, 5.0, 1.5)
+st.sidebar.subheader("⚡ Shock Testing")
+oil_shock = st.sidebar.slider("Supply-Side Shock (%)", -50, 100, 0, help="Simulates an energy price spike impacting headline inflation.")
 
 # --- ANALYTICS ENGINE ---
 m_map = {
-    "India": {"cpi": "CPI_India", "rate": "Policy_India", "beta": 0.12, "target": 4.0},
-    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "beta": 0.07, "target": 2.0},
-    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore", "beta": 0.10, "target": 2.0}
+    "India": {"cpi": "CPI_India", "rate": "Policy_India", "beta": 0.12},
+    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "beta": 0.07},
+    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore", "beta": 0.10}
 }
 m = m_map[market]
 valid_df = df.dropna(subset=[m['cpi'], m['rate']])
 
+# Filtering
 latest_date = valid_df['Date'].max()
 if horizon == "1 Year": start_point = latest_date - timedelta(days=365)
 elif horizon == "5 Years": start_point = latest_date - timedelta(days=5*365)
@@ -107,76 +125,85 @@ else: start_point = valid_df['Date'].min()
 filtered_df = valid_df[valid_df['Date'] >= start_point]
 latest = valid_df.iloc[-1]
 
-# Math
+# Calculations
 base_inf = latest[m['cpi']]
 shock_impact = (oil_shock * m['beta'])
 adj_inf = base_inf + shock_impact
 curr_rate = latest[m['rate']]
-target_inf = m['target']
 
-# Taylor Formula
-raw_fv = r_star + adj_inf + inf_weight * (adj_inf - target_inf)
+# Advanced Taylor Formula: i = r* + pi + λπ(pi - target) + λy(output_gap)
+raw_fv = r_star + adj_inf + inf_weight * (adj_inf - target_inf) + y_weight * output_gap
+# Smoothing: (1-ρ)*FV + ρ*Current
 fair_value = ( (1 - smoothing) * raw_fv ) + (smoothing * curr_rate)
 gap_bps = (fair_value - curr_rate) * 100
 
 # --- DASHBOARD ---
-st.title(f"🏛️ {market} Policy Intelligence")
-st.markdown(f"**Framework:** {philosophy} | **Data Current To:** {latest['Date'].strftime('%B %Y')}")
+st.title(f"🏛️ {market} Policy Terminal")
+st.caption(f"Framework: {philosophy} Model | Analysis Period: {latest['Date'].strftime('%B %Y')}")
 
+# Metrics Layout
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Headline CPI", f"{base_inf:.2f}%")
-c2.metric("Shock-Adj. CPI", f"{adj_inf:.2f}%", f"{shock_impact:+.2f}%" if oil_shock != 0 else None, delta_color="inverse")
-c3.metric("Policy Rate", f"{curr_rate:.2f}%")
-c4.metric("Model Fair Value", f"{fair_value:.2f}%", f"{gap_bps:+.0f} bps", delta_color="inverse")
+c2.metric("Adj. Inflation", f"{adj_inf:.2f}%", f"{shock_impact:+.2f}%" if oil_shock != 0 else None, delta_color="inverse")
+c3.metric("Current Rate", f"{curr_rate:.2f}%")
+c4.metric("Taylor Fair Value", f"{fair_value:.2f}%", f"{gap_bps:+.0f} bps", delta_color="inverse")
 
-# --- CHART (Soft Professional Palette) ---
+# --- CHART (Soft Slate & Muted Colors) ---
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Policy Rate", line=dict(color="#475569", width=2.5)))
-fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['cpi']], name="CPI (YoY)", line=dict(color="#94A3B8", width=1.5, dash='dot')))
+
+# Background area for context
+fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['rate']], name="Policy Rate", line=dict(color="#475569", width=3)))
+fig.add_trace(go.Scatter(x=filtered_df['Date'], y=filtered_df[m['cpi']], name="Inflation Trend", line=dict(color="#94a3b8", width=1.5, dash='dot')))
+
+# Highlight Model Suggestion
 fig.add_trace(go.Scatter(x=[latest['Date']], y=[fair_value], mode='markers', 
-                         marker=dict(size=14, color='#F59E0B', symbol='diamond', line=dict(width=1, color='black')),
-                         name="Model Projection"))
+                         marker=dict(size=15, color='#d97706', symbol='diamond', line=dict(width=1, color='#000')),
+                         name="Fair Value Estimate"))
 
 fig.update_layout(
     height=450, template="simple_white", margin=dict(l=10, r=10, t=20, b=10),
     legend=dict(orientation="h", y=1.1, x=0),
-    xaxis=dict(showgrid=True, gridcolor="#F1F5F9"), yaxis=dict(showgrid=True, gridcolor="#F1F5F9", title="Rate (%)")
+    xaxis=dict(showgrid=True, gridcolor="#f1f5f9"), 
+    yaxis=dict(showgrid=True, gridcolor="#f1f5f9", title="Interest Rate (%)")
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# --- TEACHING INSIGHTS ---
+# --- EDUCATIONAL INSIGHTS ---
 st.divider()
 left, right = st.columns([2, 1])
 
 with left:
-    status = "RESTRICTIVE" if gap_bps > 50 else "ACCOMMODATIVE" if gap_bps < -50 else "ALIGNED"
-    color = "#B91C1C" if status == "RESTRICTIVE" else "#15803D" if status == "ACCOMMODATIVE" else "#334155"
-    bg = "#FEF2F2" if status == "RESTRICTIVE" else "#F0FDF4" if status == "ACCOMMODATIVE" else "#F8F9FA"
+    # Color logic for assessment
+    if gap_bps > 50:
+        sig, col, bg = "RESTRICTIVE BIAS", "#991b1b", "#fef2f2"
+    elif gap_bps < -50:
+        sig, col, bg = "ACCOMMODATIVE BIAS", "#166534", "#f0fdf4"
+    else:
+        sig, col, bg = "NEUTRAL / ALIGNED", "#334155", "#f8f9fa"
 
     st.markdown(f"""
-    <div style="background-color: {bg}; border: 1px solid {color}33; border-left: 8px solid {color}; padding: 25px; border-radius: 8px;">
-        <h3 style="color: {color}; margin-top: 0; font-size: 1.25rem;">Policy Stance: {status}</h3>
+    <div style="background-color: {bg}; border: 1px solid {col}44; border-left: 10px solid {col}; padding: 25px; border-radius: 8px;">
+        <h3 style="color: {col}; margin-top: 0; font-size: 1.2rem;">Simulation Result: {sig}</h3>
         <p style="font-size: 1.05rem; line-height: 1.6; color: #334155;">
-            Our simulation estimates a <b>{gap_bps:+.0f} basis point</b> deviation from the fair-value baseline. 
-            Under the current selection, the terminal rate is projected at <b>{fair_value:.2f}%</b>.
+            The model identifies a <b>{gap_bps:+.0f} basis point</b> deviation from the fair-value benchmark. 
+            Under the <i>{philosophy}</i> framework, a terminal rate of <b>{fair_value:.2f}%</b> is suggested to stabilize price levels.
         </p>
-        <div style="background: #ffffffaa; padding: 12px; border-radius: 6px; font-size: 0.9rem; border: 1px dashed #CBD5E1;">
-            <strong>Teaching Insight:</strong> Observe the 'Policy Inertia' (Smoothing) slider. In real-world economics, 
-            central banks rarely move rates to the full 'Fair Value' instantly. They move in increments (e.g., 25bps) 
-            to ensure financial stability.
+        <div style="background: #ffffff; padding: 12px; border-radius: 6px; font-size: 0.9rem; border: 1px dashed #cbd5e1; margin-top: 15px;">
+            <strong>Lab Note:</strong> Interest Rate Smoothing (currently set to {smoothing}) represents the central bank's preference 
+            for gradualism. High inertia prevents market shocks but can lead to the bank being 'behind the curve' during rapid inflation spikes.
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 with right:
-    st.subheader("📚 The Policy Trilemma")
+    st.subheader("📚 Policy Context")
     st.markdown(f"""
-    In open-market economies like **{market}**, policymakers face a trade-off. They can only choose two of the following:
-    * **Fixed Exchange Rate**
-    * **Free Capital Movement**
-    * **Independent Monetary Policy**
+    **The Impossible Trinity**
     
-    This simulation focuses on **Monetary Independence**. If you apply a large shock, you see how internal rates must react to protect the domestic economy, even if it risks currency volatility.
+    Economies like **{market}** must balance the trade-offs of the 'Policy Trilemma.' In this lab, we focus on **Monetary Independence**.
+    
+    * **Simulated Shocks:** Adjusting the 'Supply Shock' slider demonstrates how cost-push inflation forces a central bank to raise rates even if growth is stagnant.
+    * **The Mandate:** Inflation Hawks prioritize the {target_inf}% target above all else, while a 'Dual Mandate' approach would tolerate higher inflation to close a negative Output Gap.
     """)
 
-st.caption("Advanced Policy Research Lab | Institutional Analytics Portfolio")
+st.caption("Advanced Policy Simulation Lab | Institutional Portfolio Framework")
