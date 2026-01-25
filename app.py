@@ -7,55 +7,39 @@ from datetime import datetime, timedelta
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Macro Policy Lab", layout="wide", page_icon="📜")
 
-# --- FORCED HIGH-CONTRAST CSS ---
+# --- THE "BLACK LABEL" CSS OVERRIDE ---
 st.markdown("""
     <style>
-    /* 1. Global Reset - Force everything to Black/Parchment regardless of system theme */
-    :root {
-        --primary-color: #000000 !important;
-        --background-color: #F2EBE3 !important;
-        --secondary-background-color: #E8E0D5 !important;
-        --text-color: #000000 !important;
-    }
-
-    /* 2. Main Backgrounds */
+    /* 1. Global Backgrounds */
     .stApp, [data-testid="stAppViewContainer"] {
         background-color: #F2EBE3 !important;
     }
-    
     [data-testid="stSidebar"] {
         background-color: #E8E0D5 !important;
     }
 
-    /* 3. The "Nuclear" Label Fix - Targets all possible widget label types */
-    /* This specific selector targets the span and p tags inside labels that Streamlit uses */
-    span[data-testid="stWidgetLabel"] p, 
-    div[data-testid="stWidgetLabel"] p,
-    label p,
-    .stSelectbox label p,
-    .stSlider label p,
+    /* 2. TARGETING TOGGLE/SLIDER/SELECTBOX TITLES */
+    /* This targets the specific paragraph tag inside the label container */
+    div[data-testid="stWidgetLabel"] p, 
+    .stSelectbox label p, 
+    .stSlider label p, 
     .stRadio label p,
-    .stMetric label div {
+    label p {
         color: #000000 !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
         font-size: 1.1rem !important;
-        -webkit-text-fill-color: #000000 !important; /* Forces color on some browsers */
+        text-shadow: none !important;
     }
 
-    /* 4. Ensuring all standard text is black */
+    /* 3. Global Text styling */
     .stMarkdown, p, li, span, h1, h2, h3 {
         color: #000000 !important;
         font-family: 'Georgia', serif !important;
     }
 
-    /* 5. Metrics Fix */
+    /* 4. Metric Styling */
     [data-testid="stMetricLabel"] { color: #31261D !important; font-weight: 700 !important; }
     [data-testid="stMetricValue"] { color: #000000 !important; font-weight: 800 !important; }
-
-    /* 6. Slider track/handle visibility */
-    .stSlider [data-baseweb="slider"] {
-        background-color: #D1C7B7 !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -137,7 +121,6 @@ gap_bps = (fair_value - curr_rate) * 100
 
 # --- DASHBOARD ---
 st.title(f"{market} Policy Intelligence")
-st.markdown(f"**Mode:** `{scenario}` | **Targeting:** `{philosophy}`")
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Headline CPI", f"{base_inf:.2f}%")
@@ -168,8 +151,7 @@ st.markdown(f"""
     <div style="background-color: #E8E0D5; border-left: 10px solid #BC6C25; padding: 25px; border-radius: 4px;">
         <h3 style="color: #000000; margin-top: 0;">Analysis: {gap_bps:+.0f} bps Deviation</h3>
         <p style="font-size: 1.15rem; color: #000000;">
-            The simulation indicates that under the <b>{philosophy}</b> mandate, the interest rate should gravitate 
-            toward <b>{fair_value:.2f}%</b>.
+            Under the current <b>{philosophy}</b> mandate, the model suggests an interest rate anchor of <b>{fair_value:.2f}%</b>.
         </p>
     </div>
     """, unsafe_allow_html=True)
