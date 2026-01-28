@@ -2,9 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import os
+from datetime import datetime
 
-# --- 1. SETTINGS & UI ---
-st.set_page_config(page_title="Macro FX Terminal v6.3", layout="wide")
+# --- 1. SETTINGS ---
+st.set_page_config(page_title="Macro FX Terminal v6.4", layout="wide")
 
 st.markdown("""
     <style>
@@ -12,78 +13,76 @@ st.markdown("""
     [data-testid="stWidgetLabel"] p, label p, h1, h2, h3 {
         color: #333333 !important; font-weight: 800 !important;
     }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #D1C7B7; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. SEARCH & RESCUE DATA ENGINE ---
+# --- 2. THE BRUTE-FORCE DATA ENGINE ---
 @st.cache_data
-def load_all_macro_data():
+def load_and_clean_data():
     try:
         # Load Main Macro File
         df_macro = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name="Macro data")
         df_macro['Date'] = pd.to_datetime(df_macro['Date'])
         
-        def robust_fred_load(filename):
-            # Load the raw file to scan for the data start
-            raw = pd.read_excel(filename, header=None)
+        def scrape_fred_file(filename):
+            # Load raw to find where data actually starts
+            raw = pd.read_excel(filename)
+            # Find first row that is not all NaN and has a date-like string
+            # FRED files usually have 10 rows of headers. We'll skip them dynamically.
+            df = pd.read_excel(filename, skiprows=10)
             
-            # Search for the row where the first column is a date
-            start_row = 0
-            for i in range(len(raw)):
-                val = raw.iloc[i, 0]
+            # Identify columns by type
+            # We look for the first column that looks like a date and the first that looks like a number
+            date_col = None
+            val_col = None
+            
+            for col in df.columns:
+                # Try to convert to numeric to see if it's the data column
+                converted_val = pd.to_numeric(df[col], errors='coerce')
+                if converted_val.notna().sum() > 10: # If it has more than 10 numbers, it's our value col
+                    val_col = col
+                
+                # Try to convert to date
                 try:
-                    if isinstance(pd.to_datetime(val), (pd.Timestamp, datetime)):
-                        # We found a date row! Usually, the header is the row ABOVE this.
-                        start_row = i - 1 if i > 0 else 0
-                        break
+                    converted_date = pd.to_datetime(df[col], errors='coerce')
+                    if converted_date.notna().sum() > 10:
+                        date_col = col
                 except:
                     continue
             
-            # Reload with the identified header row
-            df_final = pd.read_excel(filename, skiprows=start_row)
-            
-            # Standardize columns: Col 0 is Date, Col 1 is the Rate
-            df_final.columns = ['observation_date', 'rate_val']
-            
-            # Final Cleaning: Force numeric and drop empty rows
-            df_final['rate_val'] = pd.to_numeric(df_final['rate_val'], errors='coerce')
-            df_final['observation_date'] = pd.to_datetime(df_final['observation_date'], errors='coerce')
-            return df_final.dropna(subset=['rate_val', 'observation_date'])
+            # Clean and return
+            df[val_col] = pd.to_numeric(df[val_col], errors='coerce')
+            df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
+            return df.dropna(subset=[val_col, date_col])[[date_col, val_col]].rename(columns={date_col: 'date', val_col: 'val'})
 
-        # Load all FX files using the scanner
-        inr = robust_fred_load('DEXINUS.xlsx')
-        gbp = robust_fred_load('DEXUSUK.xlsx')
-        sgd = robust_fred_load('AEXSIUS.xlsx')
+        inr = scrape_fred_file('DEXINUS.xlsx')
+        gbp = scrape_fred_file('DEXUSUK.xlsx')
+        sgd = scrape_fred_file('AEXSIUS.xlsx')
         
         return df_macro, inr, gbp, sgd, None
     except Exception as e:
         return None, None, None, None, str(e)
 
-from datetime import datetime
-df_macro, df_inr, df_gbp, df_sgd, error_msg = load_all_macro_data()
+df_macro, df_inr, df_gbp, df_sgd, error_msg = load_and_clean_data()
 
-# --- 3. DASHBOARD LOGIC ---
+# --- 3. ANALYTICS ---
 if error_msg:
-    st.error(f"🛠️ **Terminal Offline:** {error_msg}")
-    st.info("Files found in root: " + str(os.listdir('.')))
+    st.error(f"🛠️ Terminal Error: {error_msg}")
     st.stop()
 
 st.sidebar.title("📜 Policy Lab")
 market = st.sidebar.selectbox("Market Selection", ["India", "UK", "Singapore"])
 
-# External Controls
 st.sidebar.divider()
-st.sidebar.subheader("🌍 FX Stability Simulation")
-fx_shock = st.sidebar.slider("Simulate FX Depreciation (%)", 0.0, 15.0, 0.0)
-pass_through = st.sidebar.slider("Pass-through Beta (FX -> Rates)", 0.0, 1.0, 0.2)
+st.sidebar.subheader("🌍 External Toggles")
+fx_shock = st.sidebar.slider("FX Depreciation (%)", 0.0, 15.0, 0.0)
+beta = st.sidebar.slider("Pass-through (Beta)", 0.0, 1.0, 0.2)
 
-# Domestic Controls
 st.sidebar.divider()
-st.sidebar.subheader("🏗️ Domestic Target")
+st.sidebar.subheader("🏗️ Domestic Calibration")
 r_star = st.sidebar.slider("Neutral Rate (r*)", 0.0, 5.0, 1.5)
 
-# Mapping Data
+# Mapping
 m_map = {
     "India": {"cpi": "CPI_India", "rate": "Policy_India", "fx": df_inr},
     "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "fx": df_gbp},
@@ -91,34 +90,26 @@ m_map = {
 }
 
 m = m_map[market]
-fx_df = m['fx']
 latest_macro = df_macro.dropna(subset=[m['cpi'], m['rate']]).iloc[-1]
-latest_fx = fx_df.iloc[-1]
+latest_fx = m['fx'].iloc[-1]
 
-# Calculations
-base_inf = latest_macro[m['cpi']]
-curr_rate = latest_macro[m['rate']]
-fx_val = latest_fx['rate_val']
-
-# Open Economy Taylor Rule
-# Fair Value = r* + Inf + 1.5*(Inf - 2%) + (FX Pressure)
-fair_value = r_star + base_inf + 1.5*(base_inf - 2.0) + (fx_shock * pass_through)
-gap_bps = (fair_value - curr_rate) * 100
+# Rule Logic
+fair_value = r_star + latest_macro[m['cpi']] + 1.5*(latest_macro[m['cpi']] - 2.0) + (fx_shock * beta)
+gap = (fair_value - latest_macro[m['rate']]) * 100
 
 # --- 4. DISPLAY ---
-st.title(f"{market} Policy Surveillance Terminal")
+st.title(f"{market} Surveillance Terminal")
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Current FX Rate", f"{fx_val:.2f}")
-c2.metric("Headline CPI", f"{base_inf:.2f}%")
+c1.metric("Latest FX Rate", f"{latest_fx['val']:.2f}")
+c2.metric("Headline CPI", f"{latest_macro[m['cpi']]:.2f}%")
 c3.metric("Taylor Fair Value", f"{fair_value:.2f}%")
-c4.metric("Action Gap", f"{gap_bps:+.0f} bps", delta_color="inverse")
+c4.metric("Action Gap", f"{gap:+.0f} bps", delta_color="inverse")
 
-# Dual Axis Visualization
+# Dual Axis Graph
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=df_macro['Date'], y=df_macro[m['rate']], name="Policy Rate (%)", line=dict(color="#2E5077", width=3)))
-fig.add_trace(go.Scatter(x=fx_df['observation_date'], y=fx_df['rate_val'], 
-                         name="Historical FX", yaxis="y2", line=dict(color="#BC6C25", dash='dot')))
+fig.add_trace(go.Scatter(x=m['fx']['date'], y=m['fx']['val'], name="Historical FX", yaxis="y2", line=dict(color="#BC6C25", dash='dot')))
 
 fig.update_layout(
     yaxis=dict(title="Policy Rate (%)"),
@@ -128,11 +119,10 @@ fig.update_layout(
 )
 st.plotly_chart(fig, use_container_width=True)
 
-# Footer Education for MAS
 st.divider()
-st.subheader("💡 Terminal Insights")
-st.write(f"""
-* The **Action Gap** of **{gap_bps:+.0f} bps** suggests that based on current inflation and simulated FX shocks, the {market} policy rate is 
-{"under-tightened" if gap_bps > 0 else "appropriately set or over-tightened"} relative to the Taylor Rule benchmark.
-* **Currency Pass-Through:** A {fx_shock}% shock adds **{fx_shock * pass_through:.2f}%** to the necessary interest rate buffer to maintain capital stability.
+st.subheader("🎓 Concepts Used & Lessons Learnt")
+st.write("""
+- **Open-Economy Taylor Rule:** Extension of standard monetary policy models to include FX risk premiums for EM stability.
+- **Data Pipeline Orchestration:** Developed a custom 'Brute Force' scanner to clean disparate Excel formats from FRED and central banks.
+- **Policy Sensitivity:** Real-time simulation of FX pass-through effects on domestic price stability.
 """)
