@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import os
 
-# --- 1. SETTINGS & THEME ---
+# --- 1. SETTINGS ---
 st.set_page_config(page_title="Macro FX Lab", layout="wide")
 
 st.markdown("""
@@ -16,18 +16,28 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATA ENGINE ---
+# --- 2. INTELLIGENT DATA LOADER ---
 @st.cache_data
 def load_all_data():
     try:
-        # Load primary macro data
+        # 1. Load Macro Data
         df = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name="Macro data")
         df['Date'] = pd.to_datetime(df['Date'])
         
-        # Load FX Data - skipping potential header rows often found in FRED files
-        inr_df = pd.read_excel('DEXINUS.xlsx')
-        gbp_df = pd.read_excel('DEXUSUK.xlsx')
-        sgd_df = pd.read_excel('AEXSIUS.xlsx')
+        # 2. Load FX Data with "Header Hunting"
+        # FRED Excel files often have 10 rows of text at the top.
+        def clean_fred_excel(filename):
+            # Load without assuming header to find where data starts
+            temp_df = pd.read_excel(filename)
+            # Find the row that contains 'observation_date' or is mostly numbers
+            # Usually, FRED files have the header on row 10 (index 10)
+            skip = 10 if "AEXSIUS" not in filename else 0 # Annual files sometimes differ
+            real_df = pd.read_excel(filename, skiprows=skip)
+            return real_df
+
+        inr_df = clean_fred_excel('DEXINUS.xlsx')
+        gbp_df = clean_fred_excel('DEXUSUK.xlsx')
+        sgd_df = clean_fred_excel('AEXSIUS.xlsx')
         
         return df, inr_df, gbp_df, sgd_df, None
     except Exception as e:
@@ -49,7 +59,7 @@ st.sidebar.subheader("🌍 External Stability Toggles")
 fx_shock = st.sidebar.slider("Simulate FX Depreciation (%)", 0.0, 15.0, 0.0)
 pass_through = st.sidebar.slider("Pass-through to Rates (Beta)", 0.0, 1.0, 0.2)
 
-# --- 5. ANALYTICS ENGINE (Robust Column Detection) ---
+# --- 5. ANALYTICS ENGINE ---
 m_map = {
     "India": {"cpi": "CPI_India", "rate": "Policy_India", "fx": df_inr},
     "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "fx": df_gbp},
@@ -57,25 +67,30 @@ m_map = {
 }
 
 m = m_map[market]
-fx_df = m['fx']
+fx_df = m['fx'].copy()
 
-# AUTO-DETECT COLUMNS: Look for 'observation_date' and the value column
+# Auto-detect Date and Value columns
 date_col = next((c for c in fx_df.columns if 'date' in str(c).lower()), fx_df.columns[0])
-# The value column is usually the 2nd one in FRED files
 val_col = next((c for c in fx_df.columns if c != date_col), fx_df.columns[1])
 
-# Clean FX data
+# Convert and Clean
 fx_df[val_col] = pd.to_numeric(fx_df[val_col], errors='coerce')
 fx_df[date_col] = pd.to_datetime(fx_df[date_col], errors='coerce')
-current_fx = fx_df.dropna(subset=[val_col]).iloc[-1]
+fx_final = fx_df.dropna(subset=[val_col, date_col])
 
+if fx_final.empty:
+    st.warning(f"⚠️ FX Data for {market} contains no numeric values. Check file structure.")
+    st.stop()
+
+current_fx = fx_final.iloc[-1]
 latest_macro = df_macro.dropna(subset=[m['cpi'], m['rate']]).iloc[-1]
 
+# Calculations
 base_inf = latest_macro[m['cpi']]
 curr_rate = latest_macro[m['rate']]
 fx_val = current_fx[val_col]
 
-# Calculations
+# Adjusted Taylor Rule
 fair_value = 1.5 + base_inf + 1.5*(base_inf - 2.0) + (fx_shock * pass_through)
 gap_bps = (fair_value - curr_rate) * 100
 
@@ -91,7 +106,7 @@ col4.metric("Action Gap", f"{gap_bps:+.0f} bps", delta_color="inverse")
 # --- 7. DUAL AXIS CHART ---
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=df_macro['Date'], y=df_macro[m['rate']], name="Policy Rate", line=dict(color="#2E5077", width=3)))
-fig.add_trace(go.Scatter(x=fx_df[date_col], y=fx_df[val_col], 
+fig.add_trace(go.Scatter(x=fx_final[date_col], y=fx_final[val_col], 
                          name="FX Rate (vs USD)", yaxis="y2", line=dict(color="#BC6C25", dash='dot')))
 
 fig.update_layout(
@@ -101,6 +116,3 @@ fig.update_layout(
     paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
 )
 st.plotly_chart(fig, use_container_width=True)
-
-if fx_shock > 0:
-    st.warning(f"⚠️ **External Risk:** A {fx_shock}% currency depreciation adds {fx_shock * pass_through:.2f}% to the policy requirement.")
