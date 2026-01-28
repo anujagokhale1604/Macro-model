@@ -1,154 +1,118 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
-# --- 1. TERMINAL CONFIGURATION ---
-st.set_page_config(page_title="Macro Intelligence Terminal", layout="wide")
+# --- 1. CONFIGURATION & UI STYLE ---
+st.set_page_config(page_title="Macro Policy Terminal", layout="wide")
 
-# Neutral Professional Styling
 st.markdown("""
     <style>
-    .stApp { background-color: #f8fafc; }
-    [data-testid="stMetricValue"] { color: #1e293b; font-weight: 700; }
-    .stSidebar { background-color: #ffffff !important; border-right: 1px solid #e2e8f0; }
+    .stApp { background-color: #fcfcfc; }
+    .main-header { font-size: 2.2rem; font-weight: 800; color: #0f172a; margin-bottom: 0.5rem; }
+    .metric-card { background: white; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0; }
+    [data-testid="stMetricValue"] { font-weight: 700; color: #1e40af; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATA ENGINE: OG LOGIC + FX INTEGRATION ---
+# --- 2. DATA INTEGRATION ENGINE (OG MERGE LOGIC) ---
 @st.cache_data
-def load_and_merge_macro():
+def load_and_merge_data():
     try:
-        # A. Load "OG" Monthly Macro Data (CPI & Policy Rates)
-        # Using the specific CSV filenames provided in the environment
+        # Load Monthly Macro Data (Exact Filenames from your upload)
         df_macro = pd.read_csv('EM_Macro_Data_India_SG_UK.xlsx - Macro data.csv')
         df_macro['Date'] = pd.to_datetime(df_macro['Date'])
         df_macro['Year'] = df_macro['Date'].dt.year
-
-        # B. Load and Clean "OG" GDP Data
+        
+        # Load and Clean GDP Growth (Annual Data)
         df_gdp_raw = pd.read_csv('EM_Macro_Data_India_SG_UK.xlsx - GDP_Growth.csv')
-        # Year is Col 0, India=Col 2, SG=Col 3, UK=Col 4
+        # Mapping: Year (Col 0), India (Col 2), Singapore (Col 3), UK (Col 4)
         df_gdp = df_gdp_raw.iloc[1:, [0, 2, 3, 4]].copy()
         df_gdp.columns = ['Year', 'GDP_India', 'GDP_Singapore', 'GDP_UK']
         df_gdp['Year'] = pd.to_numeric(df_gdp['Year'], errors='coerce')
-        df_gdp = df_gdp.dropna(subset=['Year'])
-
-        # C. Merge Logic (Monthly Macro + Annual GDP)
-        df_final = pd.merge(df_macro, df_gdp, on='Year', how='left')
-
-        # D. Load FX Data
-        def clean_fx(file, col_name):
-            df = pd.read_csv(file)
-            df.columns = ['date', 'val']
-            df['date'] = pd.to_datetime(df['date'], errors='coerce')
-            df['val'] = pd.to_numeric(df['val'], errors='coerce')
-            return df.dropna().sort_values('date')
-
-        fx_data = {
-            "India": clean_fx('DEXINUS.xlsx - Daily.csv', 'INR'),
-            "UK": clean_fx('DEXUSUK.xlsx - Daily.csv', 'GBP'),
-            "Singapore": clean_fx('AEXSIUS.xlsx - Annual.csv', 'SGD') # Note: SG FX is annual in this dataset
-        }
-
-        return df_final, fx_data, None
+        for col in ['GDP_India', 'GDP_Singapore', 'GDP_UK']:
+            df_gdp[col] = pd.to_numeric(df_gdp[col], errors='coerce')
+        
+        # Merge Annual GDP onto Monthly Data
+        df_merged = pd.merge(df_macro, df_gdp.dropna(subset=['Year']), on='Year', how='left')
+        return df_merged, None
     except Exception as e:
-        return None, None, str(e)
+        return None, str(e)
 
-df_master, fx_dict, err = load_and_merge_macro()
+df, error = load_and_merge_data()
 
-if err:
-    st.error(f"❌ Data Load Error: {err}")
+if error:
+    st.error(f"📡 Data Link Error: {error}")
     st.stop()
 
-# --- 3. JURISDICTION & STRATEGY CONTROLS ---
-st.sidebar.title("🛂 Policy Strategy Unit")
-country = st.sidebar.selectbox("Jurisdiction", ["India", "UK", "Singapore"])
+# --- 3. JURISDICTION & SCENARIO SELECTION ---
+st.sidebar.title("🛂 Policy Control Unit")
+market = st.sidebar.selectbox("Jurisdiction", ["India", "UK", "Singapore"])
 
-# Scenarios / Toggles
 st.sidebar.subheader("🎯 Macro Scenarios")
-scen = st.sidebar.radio("Policy Stance", ["Base Case", "Hawkish", "Dovish"])
+scen_choice = st.sidebar.radio("Policy Stance", ["Hawkish", "Neutral", "Dovish"])
 
-params = {
-    "Base Case": {"r_star": 1.5, "target": 2.5, "desc": "Neutral Policy Path"},
-    "Hawkish": {"r_star": 2.5, "target": 2.0, "desc": "Aggressive Inflation Anchor"},
-    "Dovish": {"r_star": 0.5, "target": 3.5, "desc": "Pro-Growth Accommodation"}
+# Central Bank Scenario Logic (Taylor Rule Inputs)
+# Parameters: r_star (Neutral Rate), pi_target (Inflation Target)
+scenarios = {
+    "Hawkish": {"r_star": 2.5, "pi_target": 2.0, "label": "Tightening Bias / Inflation Fighting"},
+    "Neutral": {"r_star": 1.5, "pi_target": 2.5, "label": "Equilibrium Policy Path"},
+    "Dovish":  {"r_star": 0.5, "pi_target": 4.0, "label": "Growth Supportive / Accommodative"}
 }
-p = params[scen]
+s = scenarios[scen_choice]
 
-# --- 4. COLUMN MAPPING (FIXES THE MISSING DATA ERROR) ---
-# Map the country selection to the exact headers in your CSV
+# --- 4. DATA MAPPING (FIXES KEYERROR) ---
+# Map user selection to the exact column names in your CSV
 mapping = {
-    "India": {"cpi": "CPI_India", "rate": "Policy_India", "gdp": "GDP_India", "fx": fx_dict["India"]},
-    "UK": {"cpi": "CPI_UK", "rate": "Policy_UK", "gdp": "GDP_UK", "fx": fx_dict["UK"]},
-    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore", "gdp": "GDP_Singapore", "fx": fx_dict["Singapore"]}
+    "India":     {"cpi": "CPI_India", "rate": "Policy_India", "gdp": "GDP_India", "pot": 5.5},
+    "UK":        {"cpi": "CPI_UK", "rate": "Policy_UK", "gdp": "GDP_UK", "pot": 2.0},
+    "Singapore": {"cpi": "CPI_Singapore", "rate": "Policy_Singapore", "gdp": "GDP_Singapore", "pot": 2.5}
 }
+m = mapping[market]
 
-m = mapping[country]
-fx_df = m['fx']
-
-# --- 5. ANALYTICS (TAYLOR RULE) ---
-# Filter data for calculations
-calc_df = df_master.dropna(subset=[m['cpi'], m['rate'], m['gdp']])
-latest = calc_df.iloc[-1]
+# --- 5. TAYLOR RULE CALCULATION ---
+# Get latest valid data row
+latest = df.dropna(subset=[m['cpi'], m['rate'], m['gdp']]).iloc[-1]
 
 inf = latest[m['cpi']]
 repo = latest[m['rate']]
-gdp_act = latest[m['gdp']]
+gdp_val = latest[m['gdp']]
+pot_gdp = m['pot']
 
-# Output Gap Assumption: Potential growth (India 6%, DM 2%)
-pot_gdp = 6.0 if country == "India" else 2.0
-fair_val = p['r_star'] + inf + 0.5*(inf - p['target']) + 0.5*(gdp_act - pot_gdp)
-gap_bps = (fair_val - repo) * 100
+# Taylor Rule Formula: i = r* + pi + 0.5(pi - pi_target) + 0.5(GDP - Potential)
+# i: Implied Nominal Policy Rate
+implied_rate = s['r_star'] + inf + 0.5*(inf - s['pi_target']) + 0.5*(gdp_val - pot_gdp)
+gap_bps = (implied_rate - repo) * 100
 
-# --- 6. EXECUTIVE DASHBOARD ---
-st.title(f"🏛️ Policy Intelligence Terminal | {country}")
-st.caption(f"Strategy: {scen} — {p['desc']}")
+# --- 6. VISUAL TERMINAL ---
+st.markdown(f"<div class='main-header'>🏛️ Macro Intelligence | {market}</div>", unsafe_allow_html=True)
+st.write(f"**Current Stance:** `{s['label']}`")
 
-# Metrics Row
+# Metrics Display
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Current Rate", f"{repo:.2f}%")
-c2.metric("CPI Inflation", f"{inf:.2f}%")
-c3.metric("GDP Growth", f"{gdp_act:.1f}%")
-c4.metric("Policy Gap", f"{gap_bps:+.0f} bps", delta_color="inverse")
+with c1: st.metric("Current Rate", f"{repo:.2f}%")
+with c2: st.metric("CPI Inflation", f"{inf:.2f}%")
+with c3: st.metric("GDP Growth", f"{gdp_val:.1f}%")
+with c4: st.metric("Taylor Implied", f"{implied_rate:.2f}%", delta=f"{gap_bps:+.0f} bps")
 
-# --- 7. MULTIVARIATE RESEARCH CHART ---
-st.subheader("Transmission Dynamics: Rates, Prices, Growth & FX")
+# Trend Chart
+st.subheader("Policy vs. Fundamentals")
+fig = go.Figure()
+fig.add_trace(go.Scatter(x=df['Date'], y=df[m['rate']], name="Policy Rate", line=dict(color='#1e3a8a', width=4)))
+fig.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="Inflation", line=dict(color='#dc2626', dash='dot')))
+fig.add_trace(go.Scatter(x=df['Date'], y=df[m['gdp']], name="GDP Growth", line=dict(color='#16a34a', dash='dash')))
 
-fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-# Add OG Data (Rates, CPI, GDP)
-fig.add_trace(go.Scatter(x=df_master['Date'], y=df_master[m['rate']], name="Policy Rate", 
-                         line=dict(color='#1e3a8a', width=3)))
-fig.add_trace(go.Scatter(x=df_master['Date'], y=df_master[m['cpi']], name="CPI (YoY)", 
-                         line=dict(color='#dc2626', dash='dot')))
-fig.add_trace(go.Scatter(x=df_master['Date'], y=df_master[m['gdp']], name="GDP Growth", 
-                         line=dict(color='#16a34a', dash='dash')))
-
-# Add New FX Data (Secondary Axis)
-fig.add_trace(go.Scatter(x=fx_df['date'], y=fx_df['val'], name="FX Rate (RHS)", 
-                         line=dict(color='#ca8a04', width=1), opacity=0.4), secondary_y=True)
-
-fig.update_layout(height=600, template="simple_white", hovermode="x unified",
+fig.update_layout(template="simple_white", height=500, hovermode="x unified",
                   legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 8. RESEARCH NOTES ---
+# --- 7. STRATEGIST "LEAN NOTE" & METHODOLOGY ---
 st.divider()
-col_a, col_b = st.columns(2)
-with col_a:
-    st.subheader("💹 Macro Resilience")
-    real_rate = repo - inf
-    st.write(f"- **Real Policy Rate:** {real_rate:.2f}%")
-    st.write(f"- **FX Deviation:** {country} currency is currently at {fx_df.iloc[-1]['val']:.2f}")
+col_note, col_method = st.columns([1, 1.2])
 
-with col_b:
-    st.subheader("📑 Strategist Outlook")
-    if abs(gap_bps) < 50:
-        st.success("✅ Policy is currently aligned with the Taylor frontier.")
-    elif gap_bps > 50:
-        st.error("🚨 Model suggests a hawkish bias is required to cool inflation.")
+with col_note:
+    st.subheader("📑 Strategist Lean Note")
+    if gap_bps > 75:
+        st.error(f"**Action: HAWKISH LEAN.** The model indicates policy is significantly behind the curve by **{gap_bps:+.0f} bps**. Expect upward pressure on yields.")
+    elif gap_bps < -75:
+        st.success(f"**Action: DOVISH LEAN.** Model identifies significant room for accommodation. Potential for policy easing in the coming quarters.")
     else:
-        st.warning("⚖️ Policy headroom exists for monetary easing.")
-
-st.caption("Terminal v11.0 | Integrated Macro-Financial Framework")
