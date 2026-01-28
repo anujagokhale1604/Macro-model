@@ -10,34 +10,35 @@ st.markdown("""
     <style>
     .stApp { background-color: #F2EBE3 !important; }
     [data-testid="stWidgetLabel"] p, label p, h1, h2, h3 {
-        color: #333333 !important;
-        font-weight: 700 !important;
+        color: #333333 !important; font-weight: 700 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. INTELLIGENT DATA LOADER ---
+# --- 2. THE AUTO-SCANNER ENGINE ---
 @st.cache_data
 def load_all_data():
     try:
-        # 1. Load Macro Data
+        # 1. Load Primary Macro Data
         df = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name="Macro data")
         df['Date'] = pd.to_datetime(df['Date'])
         
-        # 2. Load FX Data with "Header Hunting"
-        # FRED Excel files often have 10 rows of text at the top.
-        def clean_fred_excel(filename):
-            # Load without assuming header to find where data starts
-            temp_df = pd.read_excel(filename)
-            # Find the row that contains 'observation_date' or is mostly numbers
-            # Usually, FRED files have the header on row 10 (index 10)
-            skip = 10 if "AEXSIUS" not in filename else 0 # Annual files sometimes differ
-            real_df = pd.read_excel(filename, skiprows=skip)
-            return real_df
+        # 2. Intelligent FRED Excel Scanner
+        def scan_excel(filename):
+            # Load the whole sheet to find the header
+            raw = pd.read_excel(filename, header=None)
+            # Find row index where 'observation_date' or 'date' exists
+            header_row = 0
+            for i, row in raw.iterrows():
+                if any('date' in str(cell).lower() for cell in row):
+                    header_row = i
+                    break
+            # Reload with the correct header row
+            return pd.read_excel(filename, skiprows=header_row)
 
-        inr_df = clean_fred_excel('DEXINUS.xlsx')
-        gbp_df = clean_fred_excel('DEXUSUK.xlsx')
-        sgd_df = clean_fred_excel('AEXSIUS.xlsx')
+        inr_df = scan_excel('DEXINUS.xlsx')
+        gbp_df = scan_excel('DEXUSUK.xlsx')
+        sgd_df = scan_excel('AEXSIUS.xlsx')
         
         return df, inr_df, gbp_df, sgd_df, None
     except Exception as e:
@@ -69,17 +70,21 @@ m_map = {
 m = m_map[market]
 fx_df = m['fx'].copy()
 
-# Auto-detect Date and Value columns
+# Robust Column Identification
+if len(fx_df.columns) < 2:
+    st.error(f"⚠️ FX file for {market} is missing columns. Check file formatting.")
+    st.stop()
+
 date_col = next((c for c in fx_df.columns if 'date' in str(c).lower()), fx_df.columns[0])
 val_col = next((c for c in fx_df.columns if c != date_col), fx_df.columns[1])
 
-# Convert and Clean
+# Data Cleaning
 fx_df[val_col] = pd.to_numeric(fx_df[val_col], errors='coerce')
 fx_df[date_col] = pd.to_datetime(fx_df[date_col], errors='coerce')
 fx_final = fx_df.dropna(subset=[val_col, date_col])
 
 if fx_final.empty:
-    st.warning(f"⚠️ FX Data for {market} contains no numeric values. Check file structure.")
+    st.warning(f"⚠️ No numeric FX data found for {market}. Verify the Excel sheet contains data rows.")
     st.stop()
 
 current_fx = fx_final.iloc[-1]
@@ -90,7 +95,6 @@ base_inf = latest_macro[m['cpi']]
 curr_rate = latest_macro[m['rate']]
 fx_val = current_fx[val_col]
 
-# Adjusted Taylor Rule
 fair_value = 1.5 + base_inf + 1.5*(base_inf - 2.0) + (fx_shock * pass_through)
 gap_bps = (fair_value - curr_rate) * 100
 
