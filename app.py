@@ -2,153 +2,155 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import os
 
-# --- 1. THE ADAPTIVE NEUTRAL UI (Light/Dark Compatible) ---
-st.set_page_config(page_title="Strategic Macro Terminal", layout="wide")
+# --- 1. GLOBAL STYLING (Light/Dark Neutral) ---
+st.set_page_config(page_title="Strategic Macro Intelligence", layout="wide")
 
 st.markdown("""
     <style>
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); /* Neutral Adaptive */
-    }
-    [data-testid="stMetricValue"] { font-family: 'Inter', sans-serif; font-weight: 700; color: #1a365d; }
-    .main-card {
-        background: rgba(255, 255, 255, 0.7);
-        backdrop-filter: blur(10px);
-        border-radius: 15px;
-        padding: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-    }
+    .stApp { background: #F8F9FA; color: #1A202C; }
+    [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #E2E8F0; }
+    .metric-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #EDF2F7; }
+    h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 800; color: #2D3748; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. ELITE DATA ENGINE ---
+# --- 2. FUZZY DATA ENGINE ---
 @st.cache_data
-def load_institutional_data():
-    # Primary Macro Set (CPI, GDP, Repo)
-    df_macro = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name="Macro data")
-    df_macro['Date'] = pd.to_datetime(df_macro['Date'])
-    
-    def load_fx(file):
-        xl = pd.ExcelFile(file)
-        sheet = 'observation' if 'observation' in xl.sheet_names else xl.sheet_names[-1]
-        df = xl.parse(sheet)
-        df.columns = ['date', 'val']
-        df['val'] = pd.to_numeric(df['val'], errors='coerce')
-        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-        return df.dropna().sort_values('date')
+def load_macro_environment():
+    try:
+        # Load Macro File
+        m_file = 'EM_Macro_Data_India_SG_UK.xlsx'
+        xl_m = pd.ExcelFile(m_file)
+        sheet = [s for s in xl_m.sheet_names if 'macro' in s.lower()][0]
+        df_macro = xl_m.parse(sheet)
+        df_macro.columns = [str(c).strip() for c in df_macro.columns]
+        
+        # Date Standardization
+        date_col = [c for c in df_macro.columns if 'date' in c.lower()][0]
+        df_macro[date_col] = pd.to_datetime(df_macro[date_col])
+        
+        # Load FX Files
+        def load_fx(file):
+            xl = pd.ExcelFile(file)
+            s_name = 'observation' if 'observation' in xl.sheet_names else xl.sheet_names[-1]
+            df = xl.parse(s_name)
+            df.columns = ['date', 'val']
+            df['val'] = pd.to_numeric(df['val'], errors='coerce')
+            df['date'] = pd.to_datetime(df['date'])
+            return df.dropna().sort_values('date')
+
+        return {
+            "Macro": df_macro, "date_key": date_col,
+            "India": load_fx('DEXINUS.xlsx'),
+            "UK": load_fx('DEXUSUK.xlsx'),
+            "Singapore": load_fx('AEXSIUS.xlsx')
+        }, None
+    except Exception as e:
+        return None, str(e)
+
+env, err = load_macro_environment()
+if err:
+    st.error(f"📡 System Error: {err}")
+    st.stop()
+
+# --- 3. DYNAMIC COLUMN MAPPING (Fuzzy Search) ---
+def get_cols(market, df_cols):
+    # Find columns containing both 'Market' and 'Feature'
+    def search(feature):
+        candidates = [c for c in df_cols if market.lower() in c.lower() and feature.lower() in c.lower()]
+        if not candidates: # Fallback: search just for feature
+            candidates = [c for c in df_cols if feature.lower() in c.lower()]
+        return candidates[0] if candidates else None
 
     return {
-        "Macro": df_macro,
-        "India": load_fx('DEXINUS.xlsx'),
-        "UK": load_fx('DEXUSUK.xlsx'),
-        "Singapore": load_fx('AEXSIUS.xlsx')
+        "cpi": search("CPI") or search("Inflation"),
+        "gdp": search("GDP") or search("Growth"),
+        "rate": search("Rate") or search("Repo") or search("Policy")
     }
 
-data = load_institutional_data()
+# --- 4. SCENARIO & CONTROLS ---
+st.sidebar.title("🛂 Strategic Research Unit")
+market = st.sidebar.selectbox("Market Analysis", ["India", "UK", "Singapore"])
+cols = get_cols(market, env["Macro"].columns)
 
-# --- 3. STRATEGIC SCENARIO BUTTONS ---
-st.sidebar.title("🛂 Policy Strategy Unit")
-market = st.sidebar.selectbox("Jurisdiction", ["India", "UK", "Singapore"])
-
+st.sidebar.divider()
 st.sidebar.subheader("🎯 Macro Scenarios")
-col_s1, col_s2, col_s3 = st.sidebar.columns(3)
+scen = st.sidebar.radio("Select Path", ["Base Case", "Hawkish Pivot", "Dovish Easing"])
 
-# Session State for Scenario Management
-if 'scenario' not in st.session_state: st.session_state.scenario = "Base"
-
-if col_s1.button("Hawkish"): st.session_state.scenario = "Hawkish"
-if col_s2.button("Dovish"): st.session_state.scenario = "Dovish"
-if col_s3.button("Base"): st.session_state.scenario = "Base"
-
-# Scenario Logic Mapping
-scenarios = {
-    "Hawkish": {"r_star": 2.5, "fx_shock": 10.0, "beta": 0.5, "desc": "Aggressive tightening to curb currency-led inflation."},
-    "Dovish": {"r_star": 0.5, "fx_shock": 0.0, "beta": 0.1, "desc": "Accommodative stance prioritizing GDP growth over FX stability."},
-    "Base": {"r_star": 1.5, "fx_shock": 5.0, "beta": 0.3, "desc": "Neutral stance following historical Taylor Rule averages."}
+# Simulation Parameters based on Scenarios
+config = {
+    "Base Case": {"r_star": 1.5, "fx_stress": 5.0, "beta": 0.25, "target": 2.0},
+    "Hawkish Pivot": {"r_star": 2.5, "fx_stress": 12.0, "beta": 0.50, "target": 2.0},
+    "Dovish Easing": {"r_star": 0.5, "fx_stress": 0.0, "beta": 0.10, "target": 3.0}
 }
+c = config[scen]
 
-s = scenarios[st.session_state.scenario]
-
-# --- 4. DATA MAPPING & CALCULATIONS ---
-m_map = {
-    "India": {"cpi": "CPI_India", "gdp": "GDP_India", "rate": "Policy_India", "fx": data["India"]},
-    "UK": {"cpi": "CPI_UK", "gdp": "GDP_UK", "rate": "Policy_UK", "fx": data["UK"]},
-    "Singapore": {"cpi": "CPI_Singapore", "gdp": "GDP_Singapore", "rate": "Policy_Singapore", "fx": data["Singapore"]}
-}
-
-m = m_map[market]
-fx_df = m['fx']
-latest_m = data["Macro"].dropna(subset=[m['cpi'], m['gdp']]).iloc[-1]
+# --- 5. ANALYTICS ---
+df_m = env["Macro"]
+fx_df = env[market]
+latest_m = df_m.dropna(subset=[cols['cpi'], cols['gdp'], cols['rate']]).iloc[-1]
 latest_fx = fx_df.iloc[-1]['val']
 
-# Taylor-Greenspan Rule: r = r* + pi + 0.5(pi-2) + 0.5(gdp_gap) + (FX * Beta)
-# Note: Assuming potential GDP growth is 4% for EM, 2% for DM
-pot_gdp = 5.0 if market == "India" else 2.0
-gdp_gap = latest_m[m['gdp']] - pot_gdp
-fair_value = s['r_star'] + latest_m[m['cpi']] + 0.5*(latest_m[m['cpi']]-2) + 0.5*gdp_gap + (s['fx_shock']*s['beta'])
-gap_bps = (fair_value - latest_m[m['rate']]) * 100
+# Open Economy Taylor Rule calculation
+# i = r* + pi + 0.5(pi - target) + 0.5(GDP_Gap) + (FX_Shock * Beta)
+inf = latest_m[cols['cpi']]
+gdp = latest_m[cols['gdp']]
+curr_rate = latest_m[cols['rate']]
+pot_gdp = 5.0 if market == "India" else 2.5
+gdp_gap = gdp - pot_gdp
 
-# --- 5. EXECUTIVE DASHBOARD ---
-st.title(f"🏛️ Institutional Macro Terminal | {market}")
-st.markdown(f"**Strategy Profile:** `{st.session_state.scenario}` Mode — {s['desc']}")
+fair_value = c['r_star'] + inf + 0.5*(inf - c['target']) + 0.5*gdp_gap + (c['fx_stress'] * c['beta'])
+gap_bps = (fair_value - curr_rate) * 100
 
-# Top Row Metrics
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("Repo/Policy Rate", f"{latest_m[m['rate']]:.2f}%")
-c2.metric("Headline CPI", f"{latest_m[m['cpi']]:.2f}%")
-c3.metric("Real GDP Growth", f"{latest_m[m['gdp']]:.2f}%")
-c4.metric("Model Implied", f"{fair_value:.2f}%")
-c5.metric("Policy Gap", f"{gap_bps:+.0f} bps", delta_color="inverse")
+# --- 6. EXECUTIVE HUD ---
+st.title(f"Strategic Policy Terminal: {market}")
+st.caption(f"Scenario: {scen} | Model: Augmented Open-Economy Taylor Rule")
 
-# --- 6. QUAD-AXIS RESEARCH GRAPH ---
-st.subheader("Multivariate Transmission Analysis")
-timeline = st.select_slider("Select Analysis Horizon", options=["5Y", "10Y", "Max"], value="Max")
+col1, col2, col3, col4, col5 = st.columns(5)
+col1.metric("Repo Rate", f"{curr_rate:.2f}%")
+col2.metric("CPI YoY", f"{inf:.2f}%")
+col3.metric("GDP Growth", f"{gdp:.2f}%")
+col4.metric("Taylor Implied", f"{fair_value:.2f}%")
+col5.metric("Policy Gap", f"{gap_bps:+.0f} bps", delta_color="inverse")
 
-# Subplot Chart
+# --- 7. MULTIVARIATE RESEARCH GRAPH ---
+st.subheader("Multivariate Transmission: Rates, Inflation & FX")
 fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-# 1. Policy Rate Area
-fig.add_trace(go.Scatter(x=data["Macro"]['Date'], y=data["Macro"][m['rate']], name="Repo Rate", 
-                         line=dict(color='#1a365d', width=3), fill='tozeroy'), secondary_y=False)
+# Policy Rate
+fig.add_trace(go.Scatter(x=df_m[env['date_key']], y=df_m[cols['rate']], name="Policy Rate", 
+                         line=dict(color='#2B6CB0', width=4)), secondary_y=False)
+# CPI
+fig.add_trace(go.Scatter(x=df_m[env['date_key']], y=df_m[cols['cpi']], name="CPI Inflation", 
+                         line=dict(color='#C53030', width=2, dash='dot')), secondary_y=False)
+# GDP
+fig.add_trace(go.Scatter(x=df_m[env['date_key']], y=df_m[cols['gdp']], name="GDP Growth", 
+                         line=dict(color='#2F855A', width=2, dash='dash')), secondary_y=False)
+# FX (Secondary Axis)
+fig.add_trace(go.Scatter(x=fx_df['date'], y=fx_df['val'], name="Exchange Rate (RHS)", 
+                         line=dict(color='#D69E2E', width=1, opacity=0.6)), secondary_y=True)
 
-# 2. CPI Inflation
-fig.add_trace(go.Scatter(x=data["Macro"]['Date'], y=data["Macro"][m['cpi']], name="CPI (YoY)", 
-                         line=dict(color='#e53e3e', width=2, dash='dot')), secondary_y=False)
-
-# 3. FX Rate (Secondary Axis)
-fig.add_trace(go.Scatter(x=fx_df['date'], y=fx_df['val'], name="Exchange Rate", 
-                         line=dict(color='#d69e2e', width=1.5, dash='dash')), secondary_y=True)
-
-fig.update_layout(
-    height=600, template="simple_white",
-    hovermode="x unified",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    yaxis=dict(title="Rates / Inflation (%)", showgrid=True),
-    yaxis2=dict(title="FX Rate (vs USD)", showgrid=False)
-)
+fig.update_layout(height=600, template="plotly_white", hovermode="x unified",
+                  legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
 st.plotly_chart(fig, use_container_width=True)
 
-# --- 7. STRATEGIC RESEARCH UNIT ---
+# --- 8. RESEARCH COMMENTARY ---
 st.divider()
-col_left, col_right = st.columns(2)
-
-with col_left:
-    st.subheader("💹 Macro-Financial Vulnerability")
+ca, cb = st.columns(2)
+with ca:
+    st.subheader("📝 Strategic Outlook")
     st.write(f"""
-    - **Monetary Buffers:** The spread between Policy Rate and CPI is **{(latest_m[m['rate']]-latest_m[m['cpi']]):.2f}%**.
-    - **Growth Sensitivity:** A 100bps hike is estimated to impact GDP by **0.25%** based on current credit-to-GDP ratios.
-    - **External Resilience:** Current spot FX of **{latest_fx:.2f}** is trading at a 
-      **{((latest_fx - fx_df['val'].mean())/fx_df['val'].mean()*100):+.1f}%** variance to its 5-year mean.
+    **Macro Stance:** The model indicates a **{abs(gap_bps):.0f} bps** deviation from the Taylor frontier. 
+    In the **{scen}**, the transmission of FX volatility via a Beta of **{c['beta']}** necessitates 
+    a {"higher" if gap_bps > 0 else "lower"} real rate buffer of **{(fair_value - inf):.2f}%**.
     """)
 
-with col_right:
-    st.subheader("📑 Investment Strategy Implication")
-    if gap_bps > 100:
-        st.error("🚨 **STRATEGY:** Overweight Cash/Short-duration. Expect imminent hawkish pivot.")
-    elif gap_bps < -100:
-        st.success("✅ **STRATEGY:** Long Duration / Equities. Monetary easing cycle highly probable.")
-    else:
-        st.warning("⚖️ **STRATEGY:** Neutral. Policy is currently at equilibrium.")
-
-st.caption("Terminal v8.0 | Developed for Tier-1 Financial Institution Technical Evaluation")
+with cb:
+    st.subheader("🔬 Transmission Channels")
+    st.write(f"""
+    - **Imported Inflation:** A {c['fx_stress']}% FX shock adds **{c['fx_stress']*c['beta']:.2f}%** to the CPI forecast.
+    - **Output Gap:** GDP at {gdp}% vs Potential of {pot_gdp}% creates a **{gdp_gap:+.1f}%** output pressure.
+    - **Policy Recommendation:** {"Accumulate short-end duration" if gap_bps < -50 else "Hedge against hawkish surprise" if gap_bps > 50 else "Maintain neutral duration exposure"}.
+    """)
