@@ -16,30 +16,23 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATA ENGINE (With Debugging) ---
+# --- 2. DATA ENGINE ---
 @st.cache_data
 def load_all_data():
-    # Helper to check file existence
-    def get_path(filename):
-        if os.path.exists(filename):
-            return filename
-        # If exact match fails, try to find a similar name
-        files = os.listdir('.')
-        for f in files:
-            if filename.split('.')[0] in f:
-                return f
-        return None
-
     try:
         # Load primary macro data
         df = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name="Macro data")
         df['Date'] = pd.to_datetime(df['Date'])
         
-        # Load FX Data with flexible naming
-        # These names match your previous error log exactly
-        inr_df = pd.read_csv('DEXINUS.xlsx - Daily.csv', parse_dates=['observation_date'])
-        gbp_df = pd.read_csv('DEXUSUK.xlsx - Daily.csv', parse_dates=['observation_date'])
-        sgd_df = pd.read_csv('AEXSIUS.xlsx - Annual.csv', parse_dates=['observation_date'])
+        # Load FX Data from Excel (Corrected filenames from your GitHub list)
+        inr_df = pd.read_excel('DEXINUS.xlsx')
+        gbp_df = pd.read_excel('DEXUSUK.xlsx')
+        sgd_df = pd.read_excel('AEXSIUS.xlsx')
+        
+        # Standardize date columns to 'observation_date' if they aren't already
+        for d in [inr_df, gbp_df, sgd_df]:
+            if 'observation_date' not in d.columns and 'Date' in d.columns:
+                d.rename(columns={'Date': 'observation_date'}, inplace=True)
         
         return df, inr_df, gbp_df, sgd_df, None
     except Exception as e:
@@ -47,11 +40,10 @@ def load_all_data():
 
 df_macro, df_inr, df_gbp, df_sgd, error_msg = load_all_data()
 
-# --- 3. ERROR HANDLING UI ---
+# --- 3. ERROR HANDLING ---
 if error_msg:
     st.error(f"🛠️ **Data Link Broken:** {error_msg}")
-    st.info("Searching for files in your repository...")
-    st.write("Found these files on GitHub:", os.listdir('.'))
+    st.info("Ensure all Excel files are uploaded to GitHub and 'openpyxl' is in requirements.txt")
     st.stop()
 
 # --- 4. SIDEBAR ---
@@ -71,12 +63,16 @@ m_map = {
 }
 
 m = m_map[market]
-latest_macro = df_macro.dropna(subset=[m['cpi']]).iloc[-1]
-latest_fx = m['fx'].dropna(subset=[m['fx_col']]).iloc[-1]
 
-base_inf = latest_macro[m['cpi']]
-curr_rate = latest_macro[m['rate']]
-fx_val = latest_fx[m['fx_col']]
+# Clean data for calculation
+current_macro = df_macro.dropna(subset=[m['cpi'], m['rate']]).iloc[-1]
+# FX files often have "ND" (No Data) strings, we convert to numeric
+m['fx'][m['fx_col']] = pd.to_numeric(m['fx'][m['fx_col']], errors='coerce')
+current_fx = m['fx'].dropna(subset=[m['fx_col']]).iloc[-1]
+
+base_inf = current_macro[m['cpi']]
+curr_rate = current_macro[m['rate']]
+fx_val = current_fx[m['fx_col']]
 
 # FX-Adjusted Taylor Rule
 fair_value = 1.5 + base_inf + 1.5*(base_inf - 2.0) + (fx_shock * pass_through)
@@ -94,6 +90,9 @@ col4.metric("Action Gap", f"{gap_bps:+.0f} bps", delta_color="inverse")
 # --- 7. DUAL AXIS CHART ---
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=df_macro['Date'], y=df_macro[m['rate']], name="Policy Rate", line=dict(color="#2E5077", width=3)))
+
+# Ensure dates are datetime for the chart
+m['fx']['observation_date'] = pd.to_datetime(m['fx']['observation_date'])
 fig.add_trace(go.Scatter(x=m['fx']['observation_date'], y=m['fx'][m['fx_col']], 
                          name="FX Rate (vs USD)", yaxis="y2", line=dict(color="#BC6C25", dash='dot')))
 
@@ -106,4 +105,4 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 if fx_shock > 0:
-    st.warning(f"⚠️ **External Risk:** A {fx_shock}% currency depreciation requires an additional {fx_shock * pass_through:.2f}% rate hike to maintain capital parity.")
+    st.warning(f"⚠️ **External Risk:** A {fx_shock}% currency depreciation adds approx. {fx_shock * pass_through:.2f}% to the policy requirement.")
