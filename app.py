@@ -10,7 +10,7 @@ st.set_page_config(page_title="Macro Policy Lab", layout="wide")
 def find_path(keywords):
     """Searches the current directory for a file containing all keywords."""
     for f in os.listdir("."):
-        if all(k.lower() in f.lower() for k in keywords) and f.endswith('.csv'):
+        if all(k.lower() in f.lower() for k in keywords) and f.endswith('.xlsx'):
             return f
     return None
 
@@ -21,7 +21,7 @@ def load_and_sync_data():
     if not macro_file:
         st.error("❌ Could not find Macro Data file in repository.")
         st.stop()
-    df_m = pd.read_csv(macro_file)
+    df_m = pd.read_xlsx(macro_file)
     df_m['Date'] = pd.to_datetime(df_m['Date'], errors='coerce')
     df_m['Year'] = df_m['Date'].dt.year
 
