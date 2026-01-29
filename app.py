@@ -31,7 +31,7 @@ def load_and_sync_data():
         st.error("❌ Could not find GDP Growth file in repository.")
         st.stop()
     # Skip messy headers: Col 0=Year, 2=India, 3=SG, 4=UK
-    df_g = pd.read_csv(gdp_file).iloc[1:, [0, 2, 3, 4]]
+    df_g = pd.read_xlsx(gdp_file).iloc[1:, [0, 2, 3, 4]]
     df_g.columns = ['Year', 'GDP_India', 'GDP_Singapore', 'GDP_UK']
     df_g['Year'] = pd.to_numeric(df_g['Year'], errors='coerce')
 
@@ -45,7 +45,7 @@ def load_and_sync_data():
     for country, (keys, col) in fx_configs.items():
         path = find_path(keys)
         if path:
-            f = pd.read_csv(path)
+            f = pd.read_xlsx(path)
             # Standardize FX columns to 'date' and 'val'
             f.columns = ['date', 'val']
             f['date'] = pd.to_datetime(f['date'], errors='coerce')
