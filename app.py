@@ -8,8 +8,7 @@ import numpy as np
 @st.cache_data
 def load_data():
     try:
-        # Load datasets from Excel
-        # Note: In Streamlit Cloud, ensure these filenames match exactly (case-sensitive)
+        # Load sheets directly from Excel
         policy_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Policy_Rate', engine='openpyxl')
         macro_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Macro data', engine='openpyxl')
         gdp_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='GDP_Growth', engine='openpyxl')
@@ -63,7 +62,7 @@ df = load_data()
 st.title("🏛️ Global Macro-Financial Intelligence Terminal")
 st.caption("Quantitative Policy Analysis & Market Equilibrium Dashboard")
 
-# --- 3. INSTITUTIONAL SIDEBAR CONTROLS ---
+# --- 3. SIDEBAR CONTROLS ---
 with st.sidebar:
     st.header("Terminal Parameters")
     market = st.selectbox("Market Selection", ["India", "UK", "Singapore"])
@@ -81,12 +80,13 @@ with st.sidebar:
     st.subheader("Model Overlays")
     show_taylor = st.toggle("Taylor Rule (Implied)", value=False)
     show_fx = st.toggle("FX Spot Overlay", value=True)
+    show_gdp = st.toggle("Show GDP Context", value=True)
     
     if st.button("Reset Terminal"):
         st.rerun()
 
 # --- 4. ANALYTICS MAPPING & SCENARIOS ---
-# Mapping ensures we never get a KeyError again
+# FIXED: Mapping now matches the cleaning logic exactly
 mapping = {
     "India": {"p": "Policy_India", "cpi": "CPI_India", "fx": "USDINR", "fx_label": "INR"},
     "UK": {"p": "Policy_UK", "cpi": "CPI_UK", "fx": "USDGBP", "fx_label": "GBP"},
@@ -114,19 +114,19 @@ fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['p']], name="Policy Rate",
 
 # Taylor Rule Trace
 if show_taylor:
-    # Simplified Taylor: Neutral(2.5) + 1.5*(CPI - Target(2.0))
+    # Rule: Neutral Rate (2.5%) + 1.5*(CPI - Target(2.0%))
     taylor = 2.5 + 1.5 * (p_df[m['cpi']] - 2.0)
-    fig1.add_trace(go.Scatter(x=p_df['Date'], y=taylor, name="Taylor Implied", 
+    fig1.add_trace(go.Scatter(x=p_df['Date'], y=taylor, name="Taylor Rule Implied", 
                              line=dict(color='gray', dash='dash')))
 
-# FX Trace
+# FX Trace (Twined on Secondary Y-Axis)
 if show_fx and m['fx'] in p_df.columns:
-    fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['fx']], name=f"USD/{m['fx_label']}", 
+    fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['fx']], name=f"USD/{m['fx_label']} Spot", 
                              line=dict(color='#E67E22', width=2, dash='dot')), secondary_y=True)
 
 fig1.update_layout(height=500, template="plotly_white", hovermode="x unified")
 fig1.update_yaxes(title_text="Policy Rate (%)", secondary_y=False)
-fig1.update_yaxes(title_text="FX Spot Rate", secondary_y=True)
+fig1.update_yaxes(title_text="Exchange Rate", secondary_y=True)
 st.plotly_chart(fig1, use_container_width=True)
 
 # GRAPH 2: MACRO FUNDAMENTALS (CPI & GDP)
@@ -136,24 +136,22 @@ col_left, col_right = st.columns(2)
 with col_left:
     st.write("**Consumer Price Index (YoY %)**")
     fig_cpi = go.Figure()
-    fig_cpi.add_trace(go.Bar(x=p_df['Date'], y=p_df[m['cpi']], marker_color='#2E86C1'))
+    fig_cpi.add_trace(go.Bar(x=p_df['Date'], y=p_df[m['cpi']], marker_color='#2E86C1', name="CPI"))
     fig_cpi.update_layout(height=350, template="plotly_white")
     st.plotly_chart(fig_cpi, use_container_width=True)
 
 with col_right:
     st.write("**Institutional Analysis Desk**")
-    # Qualitative Insight Logic
-    corr = p_df[[m['p'], m['cpi']]].corr().iloc[0,1]
-    st.metric("Policy-Inflation Correlation", f"{round(corr, 2)}")
+    # Quick Correlation Stat
+    valid_data = p_df[[m['p'], m['cpi']]].dropna()
+    if not valid_data.empty:
+        correlation = valid_data.corr().iloc[0, 1]
+        st.metric("Policy-Inflation Correlation", f"{round(correlation, 2)}")
     
-    st.markdown(f"""
-    **Current Analysis:** The {market} market is currently showing a correlation of **{round(corr, 2)}**. 
-    In the context of the **Taylor Rule**, this indicates the extent to which the central bank is responding 
-    to price instability.
-    """)
+    st.info(f"**Current Analysis:** The {market} market correlation of {round(correlation, 2)} suggests the responsiveness of the central bank to price stability.")
     
     if st.checkbox("Show Terminal Data Table"):
         st.dataframe(p_df[['Date', m['p'], m['cpi'], m['fx']]].tail(10))
 
 st.divider()
-st.info("System Note: This terminal reconciles human-readable institutional Excel datasets with high-frequency daily market spot rates via algorithmic resampling.")
+st.caption("Terminal Note: This dashboard is optimized for institutional research. Scenarios are delta-basis adjustments; FX data is resampled to match monthly reporting cycles.")
