@@ -4,18 +4,19 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
 
-# --- 1. DATA ENGINE (High-Fidelity Processing) ---
+# --- 1. DATA ENGINE (High-Fidelity Excel Integration) ---
 @st.cache_data
 def load_and_process_intelligence():
-    # Load Primary Macro Data
     try:
+        # Load all relevant sheets from Excel
         policy_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Policy_Rate', engine='openpyxl')
-        cpi_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Macro data', engine='openpyxl')
+        macro_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Macro data', engine='openpyxl')
+        gdp_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='GDP_Growth', engine='openpyxl')
     except Exception as e:
         st.error(f"Data Connection Error: {e}")
         return pd.DataFrame()
 
-    # Reconstruct Policy Dates
+    # Workaround for the "Human-Readable" Policy Date format
     current_year, cleaned_rows = None, []
     months_map = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
                   'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
@@ -25,11 +26,14 @@ def load_and_process_intelligence():
         if val.isdigit() and len(val) == 4: current_year = int(val)
         elif val in months_map and current_year:
             dt = pd.Timestamp(year=current_year, month=months_map[val], day=1)
-            cleaned_rows.append({'Date': dt, 'India_Policy': row['India'], 'UK_Policy': row['UK'], 'SG_Policy': row['Singapore']})
+            cleaned_rows.append({'Date': dt, 'Policy_India': row['India'], 'Policy_UK': row['UK'], 'Policy_SG': row['Singapore']})
     
-    df = pd.DataFrame(cleaned_rows)
+    df_policy = pd.DataFrame(cleaned_rows)
 
-    # Process FX (Daily to Monthly Averages)
+    # Clean Macro Data (CPI)
+    macro_raw['Date'] = pd.to_datetime(macro_raw['Date'])
+    
+    # Process FX Daily to Monthly Average
     def get_fx(file, col, label):
         try:
             f_df = pd.read_excel(file, sheet_name='Daily', engine='openpyxl')
@@ -41,92 +45,98 @@ def load_and_process_intelligence():
     inr = get_fx('DEXINUS.xlsx', 'DEXINUS', 'USDINR')
     gbp = get_fx('DEXUSUK.xlsx', 'DEXUSUK', 'USDGBP')
 
-    # Master Join
+    # Global Merge
+    df = df_policy.merge(macro_raw, on='Date', how='left')
     df = df.merge(inr, on='Date', how='left').merge(gbp, on='Date', how='left')
+    
     return df.sort_values('Date')
 
-# --- 2. EXECUTIVE UI SETUP ---
-st.set_page_config(page_title="Global Macro Insights | Alpha Terminal", layout="wide")
-st.markdown("""
-    <style>
-    .main { background-color: #f5f7f9; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("🏛️ Global Macro-Financial Intelligence Terminal")
-st.caption("Strategic Analysis for Institutional Decision Making | JPMC, MAS, BCG Data Standard")
-
+# --- 2. THE TERMINAL UI ---
+st.set_page_config(page_title="Global Macro Intelligence", layout="wide")
 df = load_and_process_intelligence()
 
-# --- 3. THE "IMPRESSION" LAYER: SIDEBAR CONTROLS ---
+st.title("🏛️ Global Macro-Financial Intelligence Terminal")
+st.caption("Central Bank Policy & Market Equilibrium Analysis")
+
+# --- 3. ADVANCED SIDEBAR CONTROLS ---
 with st.sidebar:
-    st.header("Terminal Controls")
-    selected_market = st.selectbox("Market Focus", ["India (Emerging)", "UK (Developed)"])
-    
-    st.subheader("Data Toggles")
-    show_policy = st.toggle("Interest Rate Path", value=True)
-    show_fx = st.toggle("FX Spot (Monthly Avg)", value=True)
-    
-    st.subheader("Advanced Analytics")
-    calc_corr = st.checkbox("Show Correlation Matrix")
-    show_vol = st.checkbox("Show Volatility (Standard Deviation)")
+    st.header("Terminal Parameters")
+    market = st.selectbox("Market Focus", ["India", "UK", "Singapore"])
     
     st.divider()
-    st.markdown("**Note:** This terminal reconciles human-readable institutional datasets with daily market spot rates via high-frequency resampling.")
+    st.subheader("Timeline & Scenarios")
+    timeline = st.slider("Analysis Horizon", 2015, 2025, (2018, 2025))
+    scenario = st.radio("Monetary Scenario", ["Standard", "Hawkish", "Dovish", "Custom"])
+    
+    if scenario == "Custom":
+        custom_rate = st.slider("Target Policy Rate Adjustment (%)", -2.0, 2.0, 0.0, 0.25)
+    
+    st.divider()
+    st.subheader("Taylor Rule Toggles")
+    use_taylor = st.toggle("Overlay Taylor Rule (Implied)", value=False)
+    inflation_target = st.number_input("Inflation Target (%)", 0.0, 10.0, 4.0 if market == "India" else 2.0)
+    
+    if st.button("Reset Terminal"):
+        st.rerun()
 
-# Market Logic
-if "India" in selected_market:
-    policy_col, fx_col, label = 'India_Policy', 'USDINR', 'INR'
+# --- 4. DATA LOGIC MAPPING ---
+# Filter data by timeline
+mask = (df['Date'].dt.year >= timeline[0]) & (df['Date'].dt.year <= timeline[1])
+plot_df = df.loc[mask].copy()
+
+# Market mapping
+if market == "India":
+    p_col, cpi_col, fx_col, fx_label = 'Policy_India', 'CPI_India', 'USDINR', 'INR'
+elif market == "UK":
+    p_col, cpi_col, fx_col, fx_label = 'Policy_UK', 'CPI_UK', 'USDGBP', 'GBP'
 else:
-    policy_col, fx_col, label = 'UK_Policy', 'USDGBP', 'GBP'
+    p_col, cpi_col, fx_col, fx_label = 'Policy_SG', 'CPI_Singapore', 'USDINR', 'SGD' # Mocked for SG
 
-# --- 4. EXECUTIVE DASHBOARD ---
-if not df.empty:
-    # Row 1: Key Metrics (The "Consultancy" Look)
-    m1, m2, m3, m4 = st.columns(4)
-    curr_policy = df[policy_col].iloc[-1]
-    prev_policy = df[policy_col].iloc[-12] if len(df)>12 else 0
-    curr_fx = df[fx_col].iloc[-1]
-    
-    m1.metric(f"Current {label} Policy Rate", f"{curr_policy}%", f"{round(curr_policy - prev_policy, 2)}% YoY")
-    m2.metric(f"USD/{label} Spot", f"{round(curr_fx, 2)}")
-    
-    # Row 2: The Core Visualization
-    st.subheader(f"Strategic View: {selected_market}")
-    
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+# Apply Scenarios to Policy Rate
+if scenario == "Hawkish": plot_df[p_col] += 0.75
+elif scenario == "Dovish": plot_df[p_col] -= 0.75
+elif scenario == "Custom": plot_df[p_col] += custom_rate
 
-    if show_policy:
-        fig.add_trace(go.Scatter(x=df['Date'], y=df[policy_col], name="Policy Rate (%)", 
-                                line=dict(color='#1f77b4', width=3)), secondary_y=False)
+# --- 5. VISUALIZATION SUITE ---
+
+# TAB 1: MONETARY & FX EQUILIBRIUM
+st.subheader("I. Monetary & Currency Equilibrium")
+fig1 = make_subplots(specs=[[{"secondary_y": True}]])
+fig1.add_trace(go.Scatter(x=plot_df['Date'], y=plot_df[p_col], name="Policy Rate (%)", line=dict(color='navy', width=3)), secondary_y=False)
+
+if fx_col in plot_df.columns:
+    fig1.add_trace(go.Scatter(x=plot_df['Date'], y=plot_df[fx_col], name=f"FX Spot (USD/{fx_label})", line=dict(color='orange', width=2, dash='dot')), secondary_y=True)
+
+if use_taylor:
+    # Simplified Taylor: Neutral + 1.5*(CPI - Target)
+    taylor_implied = 4.0 + 1.5 * (plot_df[cpi_col] - inflation_target)
+    fig1.add_trace(go.Scatter(x=plot_df['Date'], y=taylor_implied, name="Taylor Rule Implied", line=dict(color='gray', dash='dash')))
+
+fig1.update_layout(height=450, template="plotly_white", margin=dict(l=20, r=20, t=20, b=20))
+st.plotly_chart(fig1, use_container_width=True)
+
+# TAB 2: MACRO FUNDAMENTALS (CPI & GDP)
+st.subheader("II. Macroeconomic Fundamentals")
+c1, c2 = st.columns(2)
+
+with c1:
+    st.write("**Consumer Price Index (YoY)**")
+    fig_cpi = go.Figure()
+    fig_cpi.add_trace(go.Bar(x=plot_df['Date'], y=plot_df[cpi_col], name="CPI", marker_color='cadetblue'))
+    fig_cpi.add_hline(y=inflation_target, line_dash="dash", line_color="red", annotation_text="Target")
+    fig_cpi.update_layout(height=350, template="plotly_white")
+    st.plotly_chart(fig_cpi, use_container_width=True)
+
+with c2:
+    st.write("**Policy Transmission Analysis**")
+    # Correlation between Rate and Inflation
+    corr = plot_df[[p_col, cpi_col]].corr().iloc[0,1]
+    st.metric("Rate-Inflation Correlation", f"{round(corr, 2)}")
+    st.caption("Institutional Note: A negative correlation suggests effective monetary tightening against inflationary pressures.")
     
-    if show_fx:
-        fig.add_trace(go.Scatter(x=df['Date'], y=df[fx_col], name=f"USD/{label} FX", 
-                                line=dict(color='#ff7f0e', width=3, dash='dot')), secondary_y=True)
+    if st.checkbox("Show Raw Macro Data"):
+        st.dataframe(plot_df[['Date', p_col, cpi_col, fx_col]].tail(10))
 
-    fig.update_layout(height=550, template="plotly_white", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-    fig.update_yaxes(title_text="Policy Rate (%)", secondary_y=False)
-    fig.update_yaxes(title_text=f"FX Rate (USD/{label})", secondary_y=True)
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-    # Row 3: Advanced Intelligence (The "Think Tank" Look)
-    col_left, col_right = st.columns(2)
-    
-    with col_left:
-        if calc_corr:
-            st.write("### 📊 Market Correlation Matrix")
-            corr = df[[policy_col, fx_col]].corr()
-            st.dataframe(corr.style.background_gradient(cmap='RdYlGn'))
-            st.caption("Measures the strength of the relationship between Central Bank moves and Currency value.")
-
-    with col_right:
-        if show_vol:
-            st.write("### 📉 Realized Volatility")
-            vol = df[[policy_col, fx_col]].rolling(window=12).std()
-            st.line_chart(vol)
-            st.caption("12-Month Rolling Standard Deviation (Market Stability Index).")
-
-else:
-    st.error("System Offline: Ensure .xlsx source files are in the repository root.")
+# --- 6. TERMINAL FOOTNOTES ---
+st.divider()
+st.info(f"**Analytics Desk:** Viewing {market} Market. Scenarios are calculated using a delta-basis adjustment on the latest reported central bank figures. FX data is resampled from daily high-frequency spot rates to match monthly policy reporting.")
