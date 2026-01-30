@@ -2,179 +2,197 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from datetime import datetime
 
-# --- 1. DATA ENGINE ---
+# --- 1. DATA ENGINE (XLSX OPTIMIZED) ---
 @st.cache_data
 def load_and_sync_data():
     try:
-        # Core Macro Data
-        df = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Macro data')
-        df['Date'] = pd.to_datetime(df['Date'])
+        # Load Primary Macro & Policy Data
+        df_macro = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Macro data')
+        df_macro['Date'] = pd.to_datetime(df_macro['Date'])
         
-        # GDP Growth
+        # Load GDP Growth (Cleaning messy headers)
         gdp_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='GDP_Growth', skiprows=1)
         gdp_clean = gdp_raw.iloc[1:, [0, 2, 3, 4]].copy()
         gdp_clean.columns = ['Year', 'GDP_India', 'GDP_Singapore', 'GDP_UK']
         gdp_clean['Year'] = pd.to_numeric(gdp_clean['Year'], errors='coerce')
         gdp_clean = gdp_clean.dropna(subset=['Year'])
         
-        # FX Data Processing
-        def process_fx(file, col, label):
-            f = pd.read_excel(file, sheet_name='Daily')
-            f['observation_date'] = pd.to_datetime(f['observation_date'])
-            f[col] = pd.to_numeric(f[col], errors='coerce')
-            return f.resample('MS', on='observation_date').mean().reset_index().rename(columns={'observation_date': 'Date', col: label})
+        # FX Processing (Resampling Daily to Monthly)
+        def process_fx(file, sheet, col, label):
+            try:
+                f = pd.read_excel(file, sheet_name=sheet)
+                date_col = 'observation_date' if 'observation_date' in f.columns else f.columns[0]
+                f[date_col] = pd.to_datetime(f[date_col])
+                f[col] = pd.to_numeric(f[col], errors='coerce')
+                return f.resample('MS', on=date_col).mean().reset_index().rename(columns={date_col: 'Date', col: label})
+            except: return pd.DataFrame(columns=['Date', label])
 
-        fx_inr = process_fx('DEXINUS.xlsx', 'DEXINUS', 'FX_India')
-        fx_gbp = process_fx('DEXUSUK.xlsx', 'DEXUSUK', 'FX_UK')
+        fx_inr = process_fx('DEXINUS.xlsx', 'Daily', 'DEXINUS', 'FX_India')
+        fx_gbp = process_fx('DEXUSUK.xlsx', 'Daily', 'DEXUSUK', 'FX_UK')
+        fx_sgd = process_fx('AEXSIUS.xlsx', 'Annual', 'AEXSIUS', 'FX_Singapore') # Using annual for SGP
         
-        # Global Merge
-        df['Year'] = df['Date'].dt.year
-        df = df.merge(gdp_clean, on='Year', how='left')
-        df = df.merge(fx_inr, on='Date', how='left')
-        df = df.merge(fx_gbp, on='Date', how='left')
+        # Merge Master Dataframe
+        df_macro['Year'] = df_macro['Date'].dt.year
+        df = df_macro.merge(gdp_clean, on='Year', how='left')
+        df = df.merge(fx_inr, on='Date', how='left').merge(fx_gbp, on='Date', how='left')
         
-        # Singapore FX (Annual)
-        fx_sgd = pd.read_excel('AEXSIUS.xlsx', sheet_name='Annual')
-        fx_sgd['Year'] = pd.to_datetime(fx_sgd['observation_date']).dt.year
-        df = df.merge(fx_sgd[['Year', 'AEXSIUS']], on='Year', how='left').rename(columns={'AEXSIUS': 'FX_Singapore'})
+        # Fill Singapore FX based on Year
+        fx_sgd['Year'] = fx_sgd['Date'].dt.year
+        df = df.merge(fx_sgd[['Year', 'FX_Singapore']], on='Year', how='left')
         
-        return df.sort_values('Date')
+        return df.sort_values('Date').reset_index(drop=True)
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Operational Error: {e}")
         return pd.DataFrame()
 
-# --- 2. CONFIGURATION ---
-st.set_page_config(page_title="Macro Intelligence Terminal", layout="wide")
+# --- 2. CONFIGURATION & UI ---
+st.set_page_config(page_title="Macro Terminal", layout="wide")
 df = load_and_sync_data()
 
-# --- 3. SIDEBAR: THE CONTROL DESK ---
-with st.sidebar:
-    st.header("🎛️ Control Desk")
-    market = st.selectbox("Select Core Market", ["India", "UK", "Singapore"])
+if not df.empty:
+    st.title("🏛️ Global Macro-Financial Intelligence Terminal")
+    st.caption("Quantitative Forecasting & Market Equilibrium Analysis")
+
+    # --- 3. SIDEBAR: THE ANALYTICS DESK ---
+    with st.sidebar:
+        st.header("🎛️ Analytics Desk")
+        market = st.selectbox("Market Selection", ["India", "UK", "Singapore"])
+        
+        st.divider()
+        st.subheader("⏳ Time Horizon")
+        horizon = st.radio("Select View", ["Historical", "10 Years", "5 Years"])
+        
+        st.divider()
+        st.subheader("📉 Macro Scenarios")
+        scenario_mode = st.selectbox("Environment Simulation", 
+                                   ["Standard (Actuals)", "Stagflation", "Depression", "Economic Boom", "Custom Scenario"])
+        
+        # Customization Toggle Logic
+        custom_cpi, custom_gdp, custom_rate = 0.0, 0.0, 0.0
+        if scenario_mode == "Custom Scenario":
+            st.info("Manual Parameter Override Active")
+            custom_cpi = st.slider("CPI Adjustment (%)", -5.0, 10.0, 0.0)
+            custom_gdp = st.slider("GDP Adjustment (%)", -10.0, 5.0, 0.0)
+            custom_rate = st.slider("Policy Rate Shift (bps)", -300, 300, 0) / 100
+
+        st.divider()
+        st.subheader("🔍 Analytical Toggles")
+        show_taylor = st.toggle("Overlay Taylor Rule", value=True)
+        show_fx = st.toggle("Overlay FX Spot", value=True)
+        show_metrics = st.toggle("Show Summary Metrics", value=True)
+
+    # --- 4. SCENARIO & HORIZON ENGINE ---
+    mapping = {
+        "India": {"p": "Policy_India", "cpi": "CPI_India", "gdp": "GDP_India", "fx": "FX_India", "ccy": "INR"},
+        "UK": {"p": "Policy_UK", "cpi": "CPI_UK", "gdp": "GDP_UK", "fx": "FX_UK", "ccy": "GBP"},
+        "Singapore": {"p": "Policy_Singapore", "cpi": "CPI_Singapore", "gdp": "GDP_Singapore", "fx": "FX_Singapore", "ccy": "SGD"}
+    }
+    m = mapping[market]
     
-    st.divider()
-    st.subheader("🛠️ Policy Scenarios")
-    timeline = st.slider("Time Horizon", 2012, 2025, (2018, 2024))
-    shock = st.select_slider("Monetary Shock (bps)", options=[-150, -100, -75, -50, -25, 0, 25, 50, 75, 100, 150], value=0)
-    stress_test = st.checkbox("Simulate GDP Shock (-2%)", value=False)
+    # Filter Horizon
+    max_date = df['Date'].max()
+    if horizon == "5 Years":
+        p_df = df[df['Date'] >= (max_date - pd.DateOffset(years=5))].copy()
+    elif horizon == "10 Years":
+        p_df = df[df['Date'] >= (max_date - pd.DateOffset(years=10))].copy()
+    else:
+        p_df = df.copy()
 
-    st.divider()
-    st.subheader("🔬 Quantitative Overlays")
-    # Impressive Toggles
-    show_taylor = st.toggle("Taylor Rule (Neutral: 2.5%)", value=False)
-    show_real_rate = st.toggle("Real Interest Rate (Policy - CPI)", value=False)
-    show_ma = st.toggle("12-Month Moving Average", value=False)
+    # Apply Scenario Impacts
+    if scenario_mode == "Stagflation":
+        p_df[m['cpi']] += 4.5  # High Inflation
+        p_df[m['gdp']] -= 3.0  # Stagnant Growth
+    elif scenario_mode == "Depression":
+        p_df[m['gdp']] -= 8.0  # Sharp Contraction
+        p_df[m['cpi']] -= 2.0  # Deflationary Pressure
+    elif scenario_mode == "Economic Boom":
+        p_df[m['gdp']] += 3.5  # Strong Growth
+        p_df[m['cpi']] += 1.5  # Moderate Inflation
+    elif scenario_mode == "Custom Scenario":
+        p_df[m['cpi']] += custom_cpi
+        p_df[m['gdp']] += custom_gdp
+        p_df[m['p']] += custom_rate
+
+    # --- 5. VISUALIZATION: THE COMMAND CENTER ---
     
-    # Basic Toggles
-    st.subheader("📊 Display Settings")
-    show_fx = st.toggle("Overlay FX Spot Rate", value=True)
-    show_gdp = st.toggle("Show GDP Growth Panel", value=True)
+    # Metrics Row
+    if show_metrics:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Terminal Policy Rate", f"{p_df[m['p']].iloc[-1]:.2f}%")
+        c2.metric("Latest CPI (YoY)", f"{p_df[m['cpi']].iloc[-1]:.2f}%")
+        c3.metric("Annual GDP Growth", f"{p_df[m['gdp']].iloc[-1]:.2f}%")
+        c4.metric("FX Spot Rate", f"{p_df[m['fx']].iloc[-1]:.2f} {m['ccy']}/USD")
 
-# --- 4. DATA LOGIC ---
-mapping = {
-    "India": {"p": "Policy_India", "cpi": "CPI_India", "gdp": "GDP_India", "fx": "FX_India", "sym": "INR"},
-    "UK": {"p": "Policy_UK", "cpi": "CPI_UK", "gdp": "GDP_UK", "fx": "FX_UK", "sym": "GBP"},
-    "Singapore": {"p": "Policy_Singapore", "cpi": "CPI_Singapore", "gdp": "GDP_Singapore", "fx": "FX_Singapore", "sym": "SGD"}
-}
-m = mapping[market]
-p_df = df[(df['Date'].dt.year >= timeline[0]) & (df['Date'].dt.year <= timeline[1])].copy()
-
-# Apply Dynamic Shocks
-p_df[m['p']] += (shock / 100)
-if stress_test:
-    p_df[m['gdp']] -= 2.0
-
-# --- 5. MAIN TERMINAL DISPLAY ---
-st.title("🏛️ Global Macro-Financial Intelligence Terminal")
-
-# TAB SYSTEM FOR CLEANER UI
-tab1, tab2 = st.tabs(["📈 Market Equilibrium", "📔 Methodology & Analysis"])
-
-with tab1:
-    # PRIMARY CHART
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Main Graph: Policy & Market Equilibrium
+    st.subheader("I. Monetary Policy & Market Equilibrium")
+    fig1 = make_subplots(specs=[[{"secondary_y": True}]])
     
-    # 1. Policy Rate
-    fig.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['p']], name="Adjusted Policy Rate", 
+    # Policy Rate
+    fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['p']], name="Policy Rate (%)", 
                              line=dict(color='#003366', width=4)), secondary_y=False)
     
-    # 2. Taylor Rule Overlay
+    # Taylor Rule Overlay
     if show_taylor:
-        # Taylor Formula: R = Neutral + CPI + 0.5(CPI - Target)
+        # Taylor Formula: Neutral(2.5) + CPI + 0.5*(CPI - 2.0)
         taylor = 2.5 + p_df[m['cpi']] + 0.5 * (p_df[m['cpi']] - 2.0)
-        fig.add_trace(go.Scatter(x=p_df['Date'], y=taylor, name="Taylor Implied", 
-                                 line=dict(color='rgba(128,128,128,0.5)', dash='dash')))
+        fig1.add_trace(go.Scatter(x=p_df['Date'], y=taylor, name="Taylor Implied", 
+                                 line=dict(color='rgba(128,128,128,0.5)', dash='dash')), secondary_y=False)
 
-    # 3. Real Interest Rate
-    if show_real_rate:
-        real_r = p_df[m['p']] - p_df[m['cpi']]
-        fig.add_trace(go.Scatter(x=p_df['Date'], y=real_r, name="Real Rate", 
-                                 line=dict(color='#C0392B', width=2)))
-
-    # 4. Moving Average
-    if show_ma:
-        ma_val = p_df[m['p']].rolling(window=12).mean()
-        fig.add_trace(go.Scatter(x=p_df['Date'], y=ma_val, name="12M Moving Avg", 
-                                 line=dict(color='#F1C40F', width=2)))
-
-    # 5. FX Overlay
+    # FX Overlay
     if show_fx:
-        fig.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['fx']], name=f"USD/{m['sym']}", 
-                                 line=dict(color='#E67E22', width=1.5, dash='dot')), secondary_y=True)
+        fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['fx']], name=f"FX ({m['ccy']}/USD)", 
+                                 line=dict(color='#E67E22', width=2, dash='dot')), secondary_y=True)
 
-    fig.update_layout(height=550, template="plotly_white", hovermode="x unified", legend=dict(orientation="h", y=1.1))
-    fig.update_yaxes(title_text="Interest Rate (%)", secondary_y=False)
-    fig.update_yaxes(title_text="Exchange Rate", secondary_y=True)
-    st.plotly_chart(fig, use_container_width=True)
+    fig1.update_layout(height=500, template="plotly_white", hovermode="x unified", legend=dict(orientation="h", y=1.1))
+    fig1.update_yaxes(title_text="Rate (%)", secondary_y=False)
+    fig1.update_yaxes(title_text="Exchange Rate", secondary_y=True)
+    st.plotly_chart(fig1, use_container_width=True)
 
-    # FUNDAMENTAL PANEL
-    c1, c2 = st.columns(2)
-    with c1:
-        st.write("**Price Stability (CPI YoY %)**")
-        st.bar_chart(p_df.set_index('Date')[m['cpi']], color='#2E86C1')
-    with c2:
-        if show_gdp:
-            st.write("**Growth Context (Annual GDP %)**")
-            gdp_data = p_df.drop_duplicates('Year')
-            fig_gdp = go.Figure(go.Bar(x=gdp_data['Year'], y=gdp_data[m['gdp']], 
-                                      marker_color=np.where(gdp_data[m['gdp']]<0, '#E74C3C', '#1D8348')))
-            fig_gdp.update_layout(height=300, template="plotly_white", margin=dict(t=10))
-            st.plotly_chart(fig_gdp, use_container_width=True)
-
-with tab2:
-    st.header("Terminal Intelligence Notes")
+    # Fundamentals Graph: CPI & GDP
+    st.subheader("II. Macroeconomic Fundamentals (CPI & GDP Growth)")
+    fig2 = go.Figure()
+    fig2.add_trace(go.Bar(x=p_df['Date'], y=p_df[m['cpi']], name="CPI Inflation (YoY)", marker_color='#2E86C1', opacity=0.7))
     
-    col_a, col_b = st.columns(2)
+    # Adding GDP as a line plot for clarity on growth trends
+    gdp_data = p_df.drop_duplicates('Year')
+    fig2.add_trace(go.Scatter(x=gdp_data['Date'], y=gdp_data[m['gdp']], name="GDP Growth (Annual %)", 
+                             line=dict(color='#1D8348', width=3), mode='lines+markers'))
+
+    fig2.update_layout(height=400, template="plotly_white", barmode='group', 
+                      yaxis_title="Percentage (%)", hovermode="x unified")
+    st.plotly_chart(fig2, use_container_width=True)
+
+    # --- 6. DOCUMENTATION EXPANDERS ---
+    st.divider()
+    col_note1, col_note2 = st.columns(2)
     
-    with col_a:
-        st.subheader("💡 Explanatory Note")
-        st.write("""
-        This dashboard visualizes the **Monetary Policy Transmission Mechanism**. 
-        By adjusting the policy rate (Monetary Shock), you can observe how central banks attempt to 
-        balance inflation (CPI) and growth (GDP). 
-        
-        * **Real Rates:** A negative real rate suggests 'easy money' that may fuel inflation.
-        * **Taylor Rule:** Often used to judge if a central bank is "behind the curve" regarding inflation targets.
-        * **FX Equilibrium:** Displays the relationship between domestic interest rates and currency strength (Interest Rate Parity).
-        """)
-        
+    with col_note1:
+        with st.expander("📝 Explanatory Note", expanded=True):
+            st.write("""
+            **Purpose of the Terminal:**
+            This dashboard is designed to analyze the **Monetary Transmission Mechanism**. It allows users to see how changes in 
+            central bank policy rates affect inflation (CPI) and currency value (FX).
+            
+            **Key Indicators:**
+            - **Policy Rate:** The primary tool used by central banks to manage economic heat.
+            - **Taylor Rule:** A benchmark that suggests what the interest rate *should* be based on current inflation.
+            - **GDP Growth:** A measure of economic health. In the graph above, the green line represents the annual percentage change in real GDP.
+            """)
+            
+    with col_note2:
+        with st.expander("🧪 Methodological Note", expanded=True):
+            st.write("""
+            **Data Harmonization:**
+            - **Resampling:** Monthly data (CPI/Policy) is synced with Daily FX data using a monthly arithmetic mean calculation.
+            - **GDP Mapping:** Annual GDP growth figures are mapped to the 12-month period of the respective year to allow for continuous time-series plotting.
+            
+            **Scenario Modeling Math:**
+            - **Stagflation:** Simulated by adding 4.5% to CPI and subtracting 3% from GDP.
+            - **Depression:** Simulated by subtracting 8% from GDP and 2% from CPI.
+            - **Interest Rate Parity:** The FX overlay illustrates how currency typically strengthens when local interest rates rise relative to the USD.
+            """)
 
-    with col_b:
-        st.subheader("🧪 Methodological Note")
-        st.markdown("""
-        **1. Data Resampling:**
-        Daily FX Spot rates are aggregated into monthly arithmetic means to align with the reporting frequency of CPI and Policy data.
-        
-        **2. Taylor Rule Calculation:**
-        We utilize a standardized Taylor Rule model:
-        $$i = r_t + \pi_t + 0.5(\pi_t - \pi^*)$$
-        Where $r_t$ is the neutral rate (set to 2.5%), $\pi_t$ is current inflation, and $\pi^*$ is the inflation target (assumed 2.0%).
-        
-        **3. Alignment:**
-        GDP is annual data, matched to the monthly timeline by repeating the annual value across all twelve months of the respective year to allow for continuous visualization.
-        """)
-        
-
-st.divider()
-st.caption("Terminal v2.4 | High-Fidelity Macro Analysis Framework")
+else:
+    st.warning("Data load failed. Please ensure the Excel files (EM_Macro_Data_India_SG_UK.xlsx, etc.) are in the root directory.")
