@@ -1,96 +1,132 @@
 import pandas as pd
 import streamlit as st
-import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
 
+# --- 1. DATA ENGINE (High-Fidelity Processing) ---
 @st.cache_data
-def load_data():
-    # --- 1. POLICY RATE CLEANING (The Excel Workaround) ---
+def load_and_process_intelligence():
+    # Load Primary Macro Data
     try:
-        policy_df_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Policy_Rate', engine='openpyxl')
+        policy_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Policy_Rate', engine='openpyxl')
+        cpi_raw = pd.read_excel('EM_Macro_Data_India_SG_UK.xlsx', sheet_name='Macro data', engine='openpyxl')
     except Exception as e:
-        st.error(f"Error loading main macro file: {e}")
-        return pd.DataFrame(), {}
+        st.error(f"Data Connection Error: {e}")
+        return pd.DataFrame()
 
-    current_year = None
-    cleaned_rows = []
+    # Reconstruct Policy Dates
+    current_year, cleaned_rows = None, []
     months_map = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
                   'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
     
-    for _, row in policy_df_raw.iterrows():
+    for _, row in policy_raw.iterrows():
         val = str(row['Date']).strip().split('.')[0]
-        if val.isdigit() and len(val) == 4:
-            current_year = int(val)
-        elif val in months_map:
-            if current_year:
-                dt = pd.Timestamp(year=current_year, month=months_map[val], day=1)
-                cleaned_rows.append({
-                    'Date': dt,
-                    'India_Policy': row['India'],
-                    'UK_Policy': row['UK'],
-                    'Singapore_Policy': row['Singapore']
-                })
-    policy_clean = pd.DataFrame(cleaned_rows)
+        if val.isdigit() and len(val) == 4: current_year = int(val)
+        elif val in months_map and current_year:
+            dt = pd.Timestamp(year=current_year, month=months_map[val], day=1)
+            cleaned_rows.append({'Date': dt, 'India_Policy': row['India'], 'UK_Policy': row['UK'], 'SG_Policy': row['Singapore']})
+    
+    df = pd.DataFrame(cleaned_rows)
 
-    # --- 2. FX RATE CLEANING (Daily to Monthly Average) ---
-    def process_fx(filename, col_name, label):
+    # Process FX (Daily to Monthly Averages)
+    def get_fx(file, col, label):
         try:
-            fx_df = pd.read_excel(filename, sheet_name='Daily', engine='openpyxl')
-            fx_df['observation_date'] = pd.to_datetime(fx_df['observation_date'])
-            # Convert values to numeric (handles '.' or 'ND' as NaN)
-            fx_df[col_name] = pd.to_numeric(fx_df[col_name], errors='coerce')
-            # Resample to Monthly Start (MS) and get the average
-            monthly = fx_df.resample('MS', on='observation_date').mean().reset_index()
-            return monthly.rename(columns={'observation_date': 'Date', col_name: label})
-        except Exception as e:
-            st.warning(f"Could not process FX file {filename}: {e}")
-            return pd.DataFrame(columns=['Date', label])
+            f_df = pd.read_excel(file, sheet_name='Daily', engine='openpyxl')
+            f_df['observation_date'] = pd.to_datetime(f_df['observation_date'])
+            f_df[col] = pd.to_numeric(f_df[col], errors='coerce')
+            return f_df.resample('MS', on='observation_date').mean().reset_index().rename(columns={'observation_date': 'Date', col: label})
+        except: return pd.DataFrame(columns=['Date', label])
 
-    inr_data = process_fx('DEXINUS.xlsx', 'DEXINUS', 'USDINR')
-    gbp_data = process_fx('DEXUSUK.xlsx', 'DEXUSUK', 'USDGBP')
+    inr = get_fx('DEXINUS.xlsx', 'DEXINUS', 'USDINR')
+    gbp = get_fx('DEXUSUK.xlsx', 'DEXUSUK', 'USDGBP')
 
-    # --- 3. MERGE ALL DATA ---
-    master_df = policy_clean.merge(inr_data, on='Date', how='left')
-    master_df = master_df.merge(gbp_data, on='Date', how='left')
-    master_df = master_df.sort_values('Date')
+    # Master Join
+    df = df.merge(inr, on='Date', how='left').merge(gbp, on='Date', how='left')
+    return df.sort_values('Date')
 
-    # Return dict for compatibility with your existing app structure if needed
-    fx_dict = {'USDINR': inr_data, 'USDGBP': gbp_data}
+# --- 2. EXECUTIVE UI SETUP ---
+st.set_page_config(page_title="Global Macro Insights | Alpha Terminal", layout="wide")
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    </style>
+    """, unsafe_allow_html=True)
+
+st.title("🏛️ Global Macro-Financial Intelligence Terminal")
+st.caption("Strategic Analysis for Institutional Decision Making | JPMC, MAS, BCG Data Standard")
+
+df = load_and_process_intelligence()
+
+# --- 3. THE "IMPRESSION" LAYER: SIDEBAR CONTROLS ---
+with st.sidebar:
+    st.header("Terminal Controls")
+    selected_market = st.selectbox("Market Focus", ["India (Emerging)", "UK (Developed)"])
     
-    return master_df, fx_dict
+    st.subheader("Data Toggles")
+    show_policy = st.toggle("Interest Rate Path", value=True)
+    show_fx = st.toggle("FX Spot (Monthly Avg)", value=True)
+    
+    st.subheader("Advanced Analytics")
+    calc_corr = st.checkbox("Show Correlation Matrix")
+    show_vol = st.checkbox("Show Volatility (Standard Deviation)")
+    
+    st.divider()
+    st.markdown("**Note:** This terminal reconciles human-readable institutional datasets with daily market spot rates via high-frequency resampling.")
 
-# --- STREAMLIT UI ---
-st.set_page_config(layout="wide")
-st.title("Macro-Economic & FX Analysis Dashboard")
+# Market Logic
+if "India" in selected_market:
+    policy_col, fx_col, label = 'India_Policy', 'USDINR', 'INR'
+else:
+    policy_col, fx_col, label = 'UK_Policy', 'USDGBP', 'GBP'
 
-df, fx_dict = load_data()
-
+# --- 4. EXECUTIVE DASHBOARD ---
 if not df.empty:
-    # Sidebar Filters
-    st.sidebar.header("Settings")
-    country = st.sidebar.selectbox("Select Country", ["India", "UK"])
+    # Row 1: Key Metrics (The "Consultancy" Look)
+    m1, m2, m3, m4 = st.columns(4)
+    curr_policy = df[policy_col].iloc[-1]
+    prev_policy = df[policy_col].iloc[-12] if len(df)>12 else 0
+    curr_fx = df[fx_col].iloc[-1]
     
-    # Logic to select correct columns based on country
-    if country == "India":
-        policy_col, fx_col = 'India_Policy', 'USDINR'
-        currency_label = "USD/INR"
-    else:
-        policy_col, fx_col = 'UK_Policy', 'USDGBP'
-        currency_label = "USD/GBP (GBP per USD)"
+    m1.metric(f"Current {label} Policy Rate", f"{curr_policy}%", f"{round(curr_policy - prev_policy, 2)}% YoY")
+    m2.metric(f"USD/{label} Spot", f"{round(curr_fx, 2)}")
+    
+    # Row 2: The Core Visualization
+    st.subheader(f"Strategic View: {selected_market}")
+    
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Create two columns for the dashboard
-    col1, col2 = st.columns(2)
+    if show_policy:
+        fig.add_trace(go.Scatter(x=df['Date'], y=df[policy_col], name="Policy Rate (%)", 
+                                line=dict(color='#1f77b4', width=3)), secondary_y=False)
+    
+    if show_fx:
+        fig.add_trace(go.Scatter(x=df['Date'], y=df[fx_col], name=f"USD/{label} FX", 
+                                line=dict(color='#ff7f0e', width=3, dash='dot')), secondary_y=True)
 
-    with col1:
-        st.subheader(f"{country} Policy Rate vs {currency_label}")
-        # Plotting using Plotly for better interactivity
-        fig = px.line(df, x='Date', y=[policy_col, fx_col], 
-                     labels={"value": "Rate", "variable": "Indicator"},
-                     title=f"Monthly Trends: {country}")
-        st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(height=550, template="plotly_white", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    fig.update_yaxes(title_text="Policy Rate (%)", secondary_y=False)
+    fig.update_yaxes(title_text=f"FX Rate (USD/{label})", secondary_y=True)
+    
+    st.plotly_chart(fig, use_container_width=True)
 
-    with col2:
-        st.subheader("Data Summary")
-        st.write(df[['Date', policy_col, fx_col]].tail(12))
+    # Row 3: Advanced Intelligence (The "Think Tank" Look)
+    col_left, col_right = st.columns(2)
+    
+    with col_left:
+        if calc_corr:
+            st.write("### 📊 Market Correlation Matrix")
+            corr = df[[policy_col, fx_col]].corr()
+            st.dataframe(corr.style.background_gradient(cmap='RdYlGn'))
+            st.caption("Measures the strength of the relationship between Central Bank moves and Currency value.")
+
+    with col_right:
+        if show_vol:
+            st.write("### 📉 Realized Volatility")
+            vol = df[[policy_col, fx_col]].rolling(window=12).std()
+            st.line_chart(vol)
+            st.caption("12-Month Rolling Standard Deviation (Market Stability Index).")
 
 else:
-    st.error("Data could not be loaded. Check your .xlsx filenames.")
+    st.error("System Offline: Ensure .xlsx source files are in the repository root.")
