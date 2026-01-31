@@ -2,46 +2,58 @@ import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import numpy as np
 
-# --- 1. THE BEAUTIFICATION ENGINE (Custom CSS) ---
-st.set_page_config(page_title="Macro Terminal", layout="wide")
+# --- 1. INSTITUTIONAL STYLING (CSS) ---
+st.set_page_config(page_title="Macro Terminal Pro", layout="wide")
 
+# CSS for Serif Fonts, Adaptive Containers, and Mode-Agnostic Colors
 st.markdown("""
     <style>
-    /* Professional Serif Font */
-    html, body, [class*="css"] {
-        font-family: 'Times New Roman', Times, serif;
+    /* Force Institutional Font (Serif) */
+    html, body, [class*="css"], .stMarkdown, p, span {
+        font-family: 'Times New Roman', Times, serif !important;
     }
     
-    /* Adaptive Glassmorphism for Notes */
-    .stExpander {
-        border: 1px solid rgba(150, 150, 150, 0.3) !important;
-        border-radius: 10px !important;
-        background: rgba(150, 150, 150, 0.05) !important;
+    /* Elegant Title Styling */
+    .main-title {
+        font-size: 42px;
+        font-weight: 700;
+        letter-spacing: -1px;
+        border-bottom: 2px solid #d4af37;
+        margin-bottom: 20px;
+    }
+
+    /* Adaptive Note Containers (Works in Light & Dark Mode) */
+    .note-box {
+        padding: 20px;
+        border-radius: 8px;
+        border-left: 5px solid #d4af37;
+        background-color: rgba(150, 150, 150, 0.1);
+        margin-bottom: 15px;
     }
     
-    /* Metric Card Styling */
-    div[data-testid="stMetricValue"] {
-        font-size: 1.8rem;
-        color: #d4af37; /* Gold touch */
+    /* Subtitle Styling */
+    .section-header {
+        color: #d4af37;
+        font-variant: small-caps;
+        font-size: 24px;
+        margin-top: 30px;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 2. DATA ENGINE ---
 @st.cache_data
-def load_and_sync_data():
+def load_data():
     # Load Macro & Policy
     df = pd.read_csv('EM_Macro_Data_India_SG_UK.xlsx - Macro data.csv')
     df['Date'] = pd.to_datetime(df['Date'])
     
-    # Load GDP Growth (Handling the multi-header CSV snippet)
+    # Load GDP Growth
     gdp_raw = pd.read_csv('EM_Macro_Data_India_SG_UK.xlsx - GDP_Growth.csv', skiprows=1)
     gdp_clean = gdp_raw.iloc[1:, [0, 2, 3, 4]].copy()
     gdp_clean.columns = ['Year', 'GDP_India', 'GDP_Singapore', 'GDP_UK']
     gdp_clean['Year'] = pd.to_numeric(gdp_clean['Year'], errors='coerce')
-    gdp_clean = gdp_clean.dropna(subset=['Year'])
     
     # Load FX Data
     def process_fx(file, col, label):
@@ -52,40 +64,37 @@ def load_and_sync_data():
 
     fx_inr = process_fx('DEXINUS.xlsx - Daily.csv', 'DEXINUS', 'FX_India')
     fx_gbp = process_fx('DEXUSUK.xlsx - Daily.csv', 'DEXUSUK', 'FX_UK')
-    fx_sgd = pd.read_csv('AEXSIUS.xlsx - Annual.csv')
-    fx_sgd['Year'] = pd.to_datetime(fx_sgd['observation_date']).dt.year
     
-    # Global Join
+    # Merge
     df['Year'] = df['Date'].dt.year
     df = df.merge(gdp_clean, on='Year', how='left')
     df = df.merge(fx_inr, on='Date', how='left').merge(fx_gbp, on='Date', how='left')
-    df = df.merge(fx_sgd[['Year', 'AEXSIUS']], on='Year', how='left').rename(columns={'AEXSIUS': 'FX_Singapore'})
     
     return df.sort_values('Date')
 
-df = load_and_sync_data()
+df = load_data()
 
-# --- 3. SIDEBAR: NAVIGATION & SCENARIOS ---
+# --- 3. SIDEBAR: THE ANALYTICAL CONSOLE ---
 with st.sidebar:
-    st.header("🏛️ Research Parameters")
-    market = st.selectbox("Market Focus", ["India", "UK", "Singapore"])
+    st.markdown("<h2 style='color:#d4af37;'>🏛️ Terminal Console</h2>", unsafe_allow_html=True)
+    market = st.selectbox("Market Selection", ["India", "UK", "Singapore"])
     
     st.divider()
-    st.subheader("📅 Time Horizon")
-    horizon = st.radio("Lookback Period", ["Historical", "10 Years", "5 Years"])
+    st.markdown("### ⏳ Time Horizon")
+    horizon = st.radio("Select Period", ["Historical", "10 Years", "5 Years"], index=1)
     
     st.divider()
-    st.subheader("🌋 Macro Scenarios")
-    scenario_mode = st.selectbox("Environment Simulation", 
-                               ["Standard", "Stagflation", "Depression", "Economic Boom", "Custom"])
+    st.markdown("### 📉 Macro Scenarios")
+    scenario = st.selectbox("Simulation Mode", 
+                           ["Baseline", "Stagflation 🌪️", "Depression 📉", "Economic Boom 🚀", "Custom Override ⚙️"])
     
-    # Customization Overrides
-    if scenario_mode == "Custom":
+    # Custom Toggle Logic
+    c_cpi, c_gdp, c_rate = 0.0, 0.0, 0.0
+    if "Custom" in scenario:
+        st.info("Manual Override Active")
         c_cpi = st.slider("CPI Adjustment (%)", -5.0, 10.0, 0.0)
         c_gdp = st.slider("GDP Adjustment (%)", -10.0, 5.0, 0.0)
         c_rate = st.slider("Policy Shift (bps)", -300, 300, 0) / 100
-    else:
-        c_cpi, c_gdp, c_rate = 0.0, 0.0, 0.0
 
 # --- 4. SCENARIO CALCULATIONS ---
 mapping = {
@@ -95,7 +104,7 @@ mapping = {
 }
 m = mapping[market]
 
-# Apply Time Filter
+# Horizon Filter
 max_date = df['Date'].max()
 if horizon == "5 Years":
     p_df = df[df['Date'] >= (max_date - pd.DateOffset(years=5))].copy()
@@ -105,81 +114,87 @@ else:
     p_df = df.copy()
 
 # Apply Scenario Logic
-if scenario_mode == "Stagflation":
-    p_df[m['cpi']] += 4.5
+if "Stagflation" in scenario:
+    p_df[m['cpi']] += 5.0
     p_df[m['gdp']] -= 3.0
-elif scenario_mode == "Depression":
+elif "Depression" in scenario:
     p_df[m['gdp']] -= 8.0
     p_df[m['cpi']] -= 2.0
-elif scenario_mode == "Economic Boom":
-    p_df[m['gdp']] += 3.5
-    p_df[m['cpi']] += 1.0
-elif scenario_mode == "Custom":
+elif "Boom" in scenario:
+    p_df[m['gdp']] += 4.0
+    p_df[m['cpi']] += 1.5
+elif "Custom" in scenario:
     p_df[m['cpi']] += c_cpi
     p_df[m['gdp']] += c_gdp
     p_df[m['p']] += c_rate
 
-# --- 5. DASHBOARD LAYOUT ---
-st.title(f"🏛️ {market} Macro Intelligence Report")
-st.markdown(f"**Current Scenario:** {scenario_mode} | **Horizon:** {horizon}")
+# --- 5. MAIN DASHBOARD UI ---
+st.markdown(f"<div class='main-title'>🏛️ {market.upper()} MACRO TERMINAL</div>", unsafe_allow_html=True)
 
-# Top Metrics Row
+# Metrics Cards
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Policy Rate", f"{p_df[m['p']].iloc[-1]:.2f}%")
-c2.metric("Inflation (YoY)", f"{p_df[m['cpi']].iloc[-1]:.2f}%")
-c3.metric("GDP Growth", f"{p_df[m['gdp']].iloc[-1]:.2f}%")
-c4.metric("FX Spot", f"{p_df[m['fx']].iloc[-1]:.2f}")
+c1.metric("📌 Policy Rate", f"{p_df[m['p']].iloc[-1]:.2f}%")
+c2.metric("🔥 CPI Inflation", f"{p_df[m['cpi']].iloc[-1]:.2f}%")
+c3.metric("📈 GDP Growth", f"{p_df[m['gdp']].iloc[-1]:.1f}%")
+c4.metric("💱 FX Spot", f"{p_df[m['fx']].iloc[-1]:.2f}" if pd.notnull(p_df[m['fx']].iloc[-1]) else "N/A")
 
-# Main Chart: Policy & Market Equilibrium
+# --- GRAPH 1: POLICY & FX ---
+st.markdown("<div class='section-header'>I. Monetary Policy & Equilibrium</div>", unsafe_allow_html=True)
 fig1 = make_subplots(specs=[[{"secondary_y": True}]])
-fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['p']], name="Policy Rate", line=dict(color='#003366', width=3)), secondary_y=False)
 
-# Taylor Rule Overlay
-taylor = 2.5 + p_df[m['cpi']] + 0.5 * (p_df[m['cpi']] - 2.0)
-fig1.add_trace(go.Scatter(x=p_df['Date'], y=taylor, name="Taylor Rule", line=dict(color='gray', dash='dash', width=1.5)), secondary_y=False)
+# Primary: Policy Rate
+fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['p']], name="Policy Rate (%)", 
+                         line=dict(color='#003366', width=4)), secondary_y=False)
 
-# FX Overlay
-fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['fx']], name=f"FX ({m['ccy']}/USD)", line=dict(color='#E67E22', width=2)), secondary_y=True)
+# Secondary: FX Overlay
+if pd.notnull(p_df[m['fx']]).any():
+    fig1.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['fx']], name=f"FX ({m['ccy']}/USD)", 
+                             line=dict(color='#d4af37', width=2, dash='dot')), secondary_y=True)
 
 fig1.update_layout(height=450, template="none", hovermode="x unified", legend=dict(orientation="h", y=1.1))
-st.plotly_chart(fig1, use_container_width=True)
+st.plotly_chart(fig1, width='stretch')
 
-# Fundamental Chart: GDP Growth Data
-st.subheader("📉 Growth & Price Dynamics")
+# --- GRAPH 2: GDP & CPI ---
+st.markdown("<div class='section-header'>II. Growth & Fundamental Dynamics</div>", unsafe_allow_html=True)
 fig2 = go.Figure()
-fig2.add_trace(go.Bar(x=p_df['Date'], y=p_df[m['cpi']], name="CPI (YoY)", marker_color='rgba(46, 134, 193, 0.6)'))
-fig2.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['gdp']], name="Annual GDP Growth", line=dict(color='#1D8348', width=4)))
 
-fig2.update_layout(height=400, template="none", barmode='overlay')
-st.plotly_chart(fig2, use_container_width=True)
+# CPI Bars
+fig2.add_trace(go.Bar(x=p_df['Date'], y=p_df[m['cpi']], name="CPI (YoY %)", 
+                     marker_color='rgba(150, 150, 150, 0.4)'))
 
-# --- 6. NOTES: EXPLANATORY & METHODICAL ---
+# GDP Line (Historical Growth Data)
+fig2.add_trace(go.Scatter(x=p_df['Date'], y=p_df[m['gdp']], name="Annual GDP Growth (%)", 
+                         line=dict(color='#1D8348', width=3)))
+
+fig2.update_layout(height=400, template="none", barmode='overlay', hovermode="x unified")
+st.plotly_chart(fig2, width='stretch')
+
+# --- 6. DOCUMENTATION: NOTES ---
 st.divider()
-st.subheader("📚 Research Documentation")
+st.markdown("<div class='section-header'>📜 Research Intelligence</div>", unsafe_allow_html=True)
 
-exp_col, meth_col = st.columns(2)
+col_exp, col_meth = st.columns(2)
 
-with exp_col:
-    st.info("### 💡 Explanatory Note")
-    st.write(f"""
-    **Context:** This terminal tracks {market}'s monetary health. 
-    By toggling scenarios, you are viewing how exogenous shocks (like **{scenario_mode}**) 
-    stress-test current interest rate levels.
-    
-    * **Policy Rate:** The cost of borrowing set by the central bank.
-    * **FX Spot:** The market value of the {m['ccy']} against the USD.
-    * **Taylor Rule:** A theoretical benchmark for where rates *should* be to control inflation.
-    """)
+with col_exp:
+    st.markdown(f"""
+    <div class="note-box">
+        <b>📝 Explanatory Note</b><br>
+        This terminal simulates the <b>Monetary Transmission Mechanism</b> for {market}. 
+        By toggling scenarios like <i>Stagflation</i>, the model adjusts the underlying 
+        macro fundamentals to show how the current policy rate environment would react 
+        to severe exogenous shocks.
+    </div>
+    """, unsafe_allow_html=True)
 
-with meth_col:
-    st.success("### 🧪 Methodical Note")
-    st.write(f"""
-    **Calculation Framework:**
-    - **Data Sync:** Monthly CPI and Policy rates are harmonized with Daily FX averages.
-    - **Taylor Rule Formula:** $i = r + \pi + 0.5(\pi - 2.0)$, where $r$ is the neutral rate.
-    - **Growth Modeling:** GDP data is annual growth (%) mapped across the historical timeline.
-    - **Scenario Math:** Stagflation assumes a +450bps inflation shock and -300bps GDP shock.
-    """)
+with col_meth:
+    st.markdown("""
+    <div class="note-box">
+        <b>🧪 Methodological Note</b><br>
+        <b>Data Sync:</b> Monthly macro data is merged with Annual GDP growth rates. 
+        FX rates are derived from daily spot averages.<br>
+        <b>Scenario Math:</b> Stagflation adds a +5.0% shock to CPI; Depression simulates 
+        a -8.0% GDP contraction.
+    </div>
+    """, unsafe_allow_html=True)
 
-st.divider()
-st.caption("Terminal v3.0 | Quantitative Macro Framework | Times New Roman Institutional Style")
+st.caption("Institutional Intelligence Platform | Garamond/Times Stylized | v3.0")
