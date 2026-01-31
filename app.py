@@ -151,7 +151,7 @@ if df_raw is not None:
         df[m['gdp']] = df[m['gdp']].shift(lag)
 
     # --- 5. UI DASHBOARD ---
-    st.markdown(f"<div class='main-title'>{market.upper()} // STRATEGIC MACRO TERMINAL</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='main-title'>{market.upper()} STRATEGIC MACRO TERMINAL</div>", unsafe_allow_html=True)
     
     def get_v(s): 
         valid = s.dropna()
