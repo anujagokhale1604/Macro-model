@@ -137,7 +137,7 @@ if lag_effect > 0:
     df[m['gdp']] = df[m['gdp']].shift(lag_effect)
 
 # --- 5. DASHBOARD LAYOUT ---
-st.markdown(f"<div class='main-title'>{market.upper()} // STRATEGIC MACRO TERMINAL</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='main-title'>{market.upper()} STRATEGIC MACRO TERMINAL</div>", unsafe_allow_html=True)
 
 # Latest Metrics (Gap proof)
 def get_val(series):
