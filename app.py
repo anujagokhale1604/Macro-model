@@ -101,6 +101,22 @@ with st.sidebar:
     rate_intervention = st.slider("Manual Rate Intervention (bps)", -200, 200, 0, step=25)
     # 7. Transmission Lag
     lag_effect = st.selectbox("Transmission Lag (Months)", [0, 3, 6, 12])
+    st.divider()
+st.markdown("📈 **MARKET SENSITIVITY**")
+
+# Toggle for Central Bank Target
+show_target = st.toggle("Show Inflation Target (Target: 4%)")
+
+# Slider for Capital Flows
+capital_flow = st.select_slider("Foreign Capital Sentiment", 
+                                options=["Extreme Outflow", "Neutral", "Strong Inflow"], 
+                                value="Neutral")
+
+# Logic for Capital Flow Impact
+if capital_flow == "Extreme Outflow":
+    df[m['fx']] *= 1.05  # Weaken currency by 5%
+elif capital_flow == "Strong Inflow":
+    df[m['fx']] *= 0.95  # Strengthen currency by 5%
 
 # --- 4. DATA LOGIC ---
 m_map = {
