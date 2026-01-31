@@ -4,36 +4,35 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 
-# --- 1. PREMIUM STYLING ---
+# --- 1. PREMIUM STYLING & LOGOS ---
 st.set_page_config(page_title="Macro Intel Pro", layout="wide")
 
+# Injecting Font Awesome for icons
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">', unsafe_allow_html=True)
 
 st.markdown("""
     <style>
     .stApp { background-color: #F5F5DC; color: #2c3e50; }
-    
-    /* SIDEBAR - HIGH CONTRAST */
     section[data-testid="stSidebar"] { background-color: #2c3e50 !important; border-right: 2px solid #d4af37; }
-    section[data-testid="stSidebar"] .stWidgetLabel p, 
-    section[data-testid="stSidebar"] label,
-    section[data-testid="stSidebar"] span { 
-        color: #ffffff !important; 
-        font-weight: 900 !important;
-        font-size: 1.05rem !important;
+    
+    /* Metric Card Styling */
+    .metric-card {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 5px solid #d4af37;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .metric-icon { font-size: 24px; color: #002366; margin-bottom: 5px; }
+    
+    .main-title { 
+        font-size: 38px; font-weight: 900; color: #002366; 
+        border-bottom: 4px solid #d4af37; padding-bottom: 10px; margin-bottom: 25px; 
     }
     
-    /* CHART SPACING FIX */
-    .chart-container { margin-bottom: 40px; padding: 10px; background: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-    
-    .note-box { 
-        padding: 20px; border-radius: 10px; border: 1px solid #d4af37; 
-        background-color: #ffffff; margin-bottom: 25px; color: #2c3e50; 
-        line-height: 1.6;
-    }
-    
-    .main-title { font-size: 38px; font-weight: 900; color: #002366; border-bottom: 4px solid #d4af37; padding-bottom: 10px; margin-bottom: 25px; }
-    .header-gold { color: #b8860b; font-weight: 900; font-size: 20px; margin-top: 20px; margin-bottom: 15px; text-transform: uppercase; display: flex; align-items: center; gap: 10px; }
+    .header-gold { color: #b8860b; font-weight: bold; font-size: 18px; margin-bottom: 8px; text-transform: uppercase; }
+    .note-box { padding: 18px; border-radius: 8px; border: 1px solid #d4af37; background-color: #ffffff; margin-bottom: 20px; color: #2c3e50; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -42,6 +41,7 @@ st.markdown("""
 def load_data():
     files = {"workbook": 'EM_Macro_Data_India_SG_UK.xlsx', "inr": 'DEXINUS.xlsx', "gbp": 'DEXUSUK.xlsx', "sgd": 'AEXSIUS.xlsx'}
     if not all(os.path.exists(f) for f in files.values()): return None
+
     try:
         df_m = pd.read_excel(files["workbook"], sheet_name='Macro data')
         df_m['Date'] = pd.to_datetime(df_m['Date'], errors='coerce')
@@ -66,21 +66,31 @@ def load_data():
         return df.sort_values('Date').ffill().bfill()
     except: return None
 
-# --- 3. SIDEBAR ---
+# --- 3. SIDEBAR WITH LOGOS ---
 with st.sidebar:
-    st.markdown("<h2 style='color:white; font-weight:900;'>CONTROL PANEL</h2>", unsafe_allow_html=True)
-    market = st.selectbox("SELECT MARKET", ["India", "UK", "Singapore"])
-    horizon = st.radio("TIME HORIZON", ["Historical", "10 Years", "5 Years"], index=1)
+    st.markdown("""
+        <div style='text-align: center; color: white;'>
+            <i class="fa-solid fa-chart-line fa-3x" style="color: #d4af37;"></i>
+            <h2 style='margin-top:10px;'>MACRO INTEL</h2>
+            <p style='font-size: 0.8em; opacity: 0.7;'>V2.0 Institutional Grade</p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    market = st.selectbox("Market Focus", ["India", "UK", "Singapore"])
+    horizon = st.radio("Lookback Window", ["Historical", "10 Years", "5 Years"], index=1)
+    
     st.divider()
-    scenario = st.selectbox("SCENARIO EVENT", ["Standard", "Stagflation 🌪️", "Depression 📉", "High Growth 🚀"])
-    severity = st.slider("INTENSITY (%)", 0, 100, 50)
+    scenario = st.selectbox("Global Event", ["Standard", "Stagflation 🌪️", "Depression 📉", "High Growth 🚀"])
+    severity = st.slider("Scenario Severity (%)", 0, 100, 50)
+    
     st.divider()
-    view_real = st.toggle("USE REAL RATES")
-    rate_intervention = st.slider("ADJUST RATES (BPS)", -200, 200, 0, step=25)
-    lag = st.selectbox("TRANSMISSION LAG", [0, 3, 6, 12])
+    view_real = st.toggle("View 'Real' Interest Rates")
+    rate_intervention = st.slider("Manual Rate Intervention (bps)", -200, 200, 0, step=25)
+    lag = st.selectbox("Transmission Lag (Months)", [0, 3, 6, 12])
+    
     st.divider()
-    sentiment = st.select_slider("MARKET SENTIMENT", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
-    show_taylor = st.toggle("TAYLOR RULE")
+    sentiment = st.select_slider("Global Sentiment", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
+    show_taylor = st.toggle("Overlay Taylor Rule")
 
 # --- 4. ENGINE ---
 df_raw = load_data()
@@ -93,11 +103,11 @@ if df_raw is not None:
     m = m_map[market]
     df = df_raw.copy()
 
-    # Filters
+    # Time Filter
     if horizon == "10 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=10))]
     elif horizon == "5 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=5))]
 
-    # Sim logic
+    # Sim Logic
     mult = severity / 100
     df[m['p']] += (rate_intervention / 100)
     if scenario == "Stagflation 🌪️":
@@ -107,14 +117,16 @@ if df_raw is not None:
     elif scenario == "High Growth 🚀":
         df[m['gdp']] += (4.0 * mult); df[m['cpi']] -= (1.0 * mult)
 
-    if sentiment == "Risk-Off" and m['fx'] in df.columns: df[m['fx']] *= 1.05
-    elif sentiment == "Risk-On" and m['fx'] in df.columns: df[m['fx']] *= 0.95
+    if sentiment == "Risk-Off": df[m['fx']] *= 1.05
+    elif sentiment == "Risk-On": df[m['fx']] *= 0.95
 
     avg_g = df[m['gdp']].mean() if not df[m['gdp']].empty else 0
     df['Taylor'] = m['n'] + 0.5*(df[m['cpi']] - m['t']) + 0.5*(df[m['gdp']] - avg_g)
+
     if view_real: df[m['p']] = df[m['p']] - df[m['cpi']]
     if lag > 0:
-        df[m['cpi']] = df[m['cpi']].shift(lag); df[m['gdp']] = df[m['gdp']].shift(lag)
+        df[m['cpi']] = df[m['cpi']].shift(lag)
+        df[m['gdp']] = df[m['gdp']].shift(lag)
 
     # --- 5. UI DASHBOARD ---
     st.markdown(f"<div class='main-title'>{m['flag']} {market.upper()} STRATEGIC TERMINAL</div>", unsafe_allow_html=True)
@@ -122,55 +134,37 @@ if df_raw is not None:
     def get_v(s): return s.dropna().iloc[-1] if not s.dropna().empty else 0
     lp, lc, lg, lt = get_v(df[m['p']]), get_v(df[m['cpi']]), get_v(df[m['gdp']]), get_v(df['Taylor'])
 
+    # Visual Metric Cards
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.metric("RATE", f"{lp:.2f}%")
-    with c2: st.metric("CPI", f"{lc:.2f}%")
-    with c3: st.metric("GDP", f"{lg:.1f}%")
-    with c4: st.metric(f"{m['sym']}", f"{get_v(df[m['fx']]):.2f}")
+    with c1: st.markdown(f"<div class='metric-card'><i class='fa-solid fa-building-columns metric-icon'></i><br><b>Policy Rate</b><br><h3>{lp:.2f}%</h3></div>", unsafe_allow_html=True)
+    with c2: st.markdown(f"<div class='metric-card'><i class='fa-solid fa-fire-flame-curved metric-icon'></i><br><b>Inflation</b><br><h3>{lc:.2f}%</h3></div>", unsafe_allow_html=True)
+    with c3: st.markdown(f"<div class='metric-card'><i class='fa-solid fa-seedling metric-icon'></i><br><b>GDP Growth</b><br><h3>{lg:.1f}%</h3></div>", unsafe_allow_html=True)
+    with c4: st.markdown(f"<div class='metric-card'><i class='fa-solid fa-coins metric-icon'></i><br><b>{m['sym']} Spot</b><br><h3>{get_v(df[m['fx']]):.2f}</h3></div>", unsafe_allow_html=True)
 
-    # --- CHART 1: RATES ---
-    st.markdown("<div class='header-gold'><i class='fa-solid fa-landmark'></i> I. Monetary Policy Corridor</div>", unsafe_allow_html=True)
+    # Charts
+    st.divider()
+    st.markdown("<div class='header-gold'><i class='fa-solid fa-chart-area'></i> I. Monetary Corridor & FX Sensitivity</div>", unsafe_allow_html=True)
     fig1 = make_subplots(specs=[[{"secondary_y": True}]])
-    fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate", line=dict(color='#1f77b4', width=3)), secondary_y=False)
-    if show_taylor: fig1.add_trace(go.Scatter(x=df['Date'], y=df['Taylor'], name="Taylor Suggestion", line=dict(color='orange', dash='dash')), secondary_y=False)
-    if m['fx'] in df.columns: fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="FX Level", line=dict(color='#d4af37', dash='dot')), secondary_y=True)
-    fig1.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=10, r=10, t=10, b=10))
+    fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Interest Rate", line=dict(color='#1f77b4', width=3)), secondary_y=False)
+    if show_taylor: fig1.add_trace(go.Scatter(x=df['Date'], y=df['Taylor'], name="Taylor Rule", line=dict(color='orange', dash='dash')), secondary_y=False)
+    fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="Exchange Rate", line=dict(color='#d4af37', dash='dot')), secondary_y=True)
+    fig1.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', height=400)
     st.plotly_chart(fig1, use_container_width=True)
 
-    # --- CHART 2: GDP & CPI (NEW ROW TO PREVENT CUTOFF) ---
-    st.markdown("<div class='header-gold'><i class='fa-solid fa-chart-bar'></i> II. Real Economy: Growth vs Inflation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='header-gold'><i class='fa-solid fa-magnifying-glass-chart'></i> II. Macro Fundamentals</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
     fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="GDP Growth", marker_color='#2ecc71', opacity=0.6), secondary_y=False)
-    fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI Inflation", line=dict(color='#e74c3c', width=3)), secondary_y=True)
-    fig2.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', height=350, margin=dict(l=10, r=10, t=10, b=10))
+    fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="Inflation", line=dict(color='#e74c3c', width=3)), secondary_y=True)
+    fig2.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', height=400)
     st.plotly_chart(fig2, use_container_width=True)
 
-    # --- 6. STATS & ANALYTICS ---
+    # --- 6. DYNAMIC NOTES ---
     st.divider()
-    st.markdown("<div class='header-gold'><i class='fa-solid fa-square-poll-vertical'></i> III. Statistical Analysis</div>", unsafe_allow_html=True)
-    
-    corr_matrix = df[[m['p'], m['cpi'], m['gdp'], m['fx']]].corr()
-    col_m, col_n = st.columns([1, 1])
-    
-    with col_m:
-        st.dataframe(corr_matrix.style.background_gradient(cmap='RdYlGn', axis=None).format("{:.2f}"), use_container_width=True)
-    with col_n:
-        rate_fx_corr = corr_matrix.loc[m['p'], m['fx']]
-        st.markdown(f"""<div class='note-box'>
-            <b>Correlation Interpreter:</b><br>
-            The current correlation between Policy Rates and Currency Spot is <b>{rate_fx_corr:.2f}</b>. 
-            This indicates a <b>{'positive' if rate_fx_corr > 0 else 'negative'}</b> market sensitivity, 
-            meaning currency value tends to {'strengthen' if rate_fx_corr > 0 else 'weaken'} as rates rise.
-        </div>""", unsafe_allow_html=True)
-
-    # --- 7. VERDICT ---
-    st.markdown("<div class='header-gold'><i class='fa-solid fa-clipboard-check'></i> IV. Strategic Verdict</div>", unsafe_allow_html=True)
-    v_status = "HAWKISH" if lp > lt else "DOVISH"
-    st.markdown(f"""<div class='note-box'>
-        <b>Analyst Conclusion:</b> The {market} Central Bank stance is <b>{v_status}</b>. 
-        There is a <b>{abs(lp-lt):.2f}%</b> gap between the simulated rate and Taylor Rule equilibrium. 
-        In the <b>{scenario}</b> scenario, the primary risk factor is the {lag}-month policy transmission lag.
-    </div>""", unsafe_allow_html=True)
-
-else:
-    st.error("Terminal Offline: Check GitHub Excel files.")
+    colA, colB = st.columns(2)
+    with colA:
+        st.markdown("<div class='header-gold'><i class='fa-solid fa-gavel'></i> Analyst Verdict</div>", unsafe_allow_html=True)
+        v_msg = "Central Bank is <b>Hawkish</b>." if lp > lt else "Central Bank is <b>Dovish</b>."
+        st.markdown(f"<div class='note-box'><b>Current Logic:</b> {scenario} ({severity}% severity).<br><br><b>Conclusion:</b> {v_msg}</div>", unsafe_allow_html=True)
+    with colB:
+        st.markdown("<div class='header-gold'><i class='fa-solid fa-microscope'></i> Methodological Note</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='note-box'>Displaying data for <b>{market}</b>. Real-rates enabled: {view_real}. Transmission lag: {lag} months.</div>", unsafe_allow_html=True)
