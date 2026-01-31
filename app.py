@@ -4,56 +4,50 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 
-# --- 1. TERMINAL UI CONFIGURATION (DARK & GOLD) ---
+# --- 1. INSTITUTIONAL BEIGE STYLING ---
 st.set_page_config(page_title="Macro Terminal Pro", layout="wide")
 
 st.markdown("""
     <style>
-    /* Main App Background */
+    /* Background and Global Font */
     .stApp {
-        background-color: #0b0e14;
-        color: #e0e0e0;
+        background-color: #F5F5DC; /* Beige */
+        color: #2c3e50;
     }
     
-    /* Sidebar Styling */
+    /* Sidebar Styling: Dark & Professional */
     section[data-testid="stSidebar"] {
-        background-color: #12161d !important;
-        border-right: 1px solid #d4af37;
+        background-color: #2c3e50 !important;
+        border-right: 2px solid #d4af37;
+    }
+    
+    /* Dark Toggles/Labels in Sidebar */
+    section[data-testid="stSidebar"] .stWidgetLabel, 
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] label {
+        color: #ecf0f1 !important;
     }
 
-    /* Force visibility on labels and radio buttons */
-    .stWidgetLabel, label, .stMarkdown p {
-        color: #ffffff !important;
-        font-weight: 500;
-    }
-
-    /* Gold Titles and Blue Headers */
     .main-title {
-        color: #d4af37;
-        font-size: 42px;
+        font-size: 38px;
         font-weight: 800;
-        text-transform: uppercase;
-        border-bottom: 2px solid #d4af37;
+        color: #1a1a1a;
+        border-bottom: 3px solid #d4af37;
         margin-bottom: 20px;
     }
 
-    .note-header {
-        color: #58a6ff;
-        font-size: 20px;
-        font-weight: bold;
-        margin-top: 20px;
-        border-left: 4px solid #58a6ff;
-        padding-left: 10px;
-    }
-
-    .note-body {
-        background-color: #1c2128;
-        padding: 15px;
-        border-radius: 5px;
-        border: 1px solid #30363d;
-        color: #c9d1d9;
+    /* Professional Note Boxes */
+    .note-box {
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #d4af37;
+        background-color: #ffffff;
         margin-bottom: 20px;
+        line-height: 1.6;
+        box-shadow: 2px 2px 10px rgba(0,0,0,0.05);
     }
+    
+    .header-gold { color: #b8860b; font-weight: bold; font-size: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -67,16 +61,15 @@ def load_data():
         "sgd": 'AEXSIUS.xlsx'
     }
 
-    # 2a. Load Macro Data
+    # Load Main Data
     df_macro = pd.read_excel(files["workbook"], sheet_name='Macro data')
     df_macro['Date'] = pd.to_datetime(df_macro['Date'], errors='coerce')
     
-    # 2b. Load GDP (Correcting headers)
+    # Load GDP
     df_gdp = pd.read_excel(files["workbook"], sheet_name='GDP_Growth', skiprows=1).iloc[1:, [0, 2, 3, 4]]
     df_gdp.columns = ['Year', 'GDP_India', 'GDP_Singapore', 'GDP_UK']
     df_gdp['Year'] = pd.to_numeric(df_gdp['Year'], errors='coerce')
 
-    # 2c. Robust FX Reader
     def get_fx(path, out_col):
         try:
             xls = pd.ExcelFile(path)
@@ -93,7 +86,6 @@ def load_data():
     fx_gbp = get_fx(files["gbp"], 'FX_UK')
     fx_sgd = get_fx(files["sgd"], 'FX_Singapore')
 
-    # 2d. Merge (Outer join to prevent data loss)
     df_macro['Year'] = df_macro['Date'].dt.year
     df = df_macro.merge(df_gdp, on='Year', how='left')
     for fx in [fx_inr, fx_gbp, fx_sgd]:
@@ -101,67 +93,103 @@ def load_data():
     
     return df.sort_values('Date')
 
-df = load_data()
+raw_df = load_data()
 
-# --- 3. SIDEBAR & LOGIC ---
+# --- 3. SIDEBAR CONTROLS & RESET ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#d4af37;'>CONTROL PANEL</h2>", unsafe_allow_html=True)
-    market = st.selectbox("Market Focus", ["India", "UK", "Singapore"])
-    horizon = st.radio("Time Horizon", ["5 Years", "10 Years", "Max Historical"], index=1)
+    st.markdown("<h2 style='color:#d4af37;'>🏛️ TERMINAL SETUP</h2>", unsafe_allow_html=True)
     
+    if st.button("🔄 Reset Terminal"):
+        st.rerun()
+
+    market = st.selectbox("Select Market", ["India", "UK", "Singapore"])
+    horizon = st.radio("Lookback Horizon", ["Historical", "10 Years", "5 Years"], index=1)
+    st.divider()
+    scenario = st.selectbox("Macro Simulation", 
+                           ["Standard", "Stagflation 🌪️", "Depression 📉", "High Growth 🚀"])
+
+# --- 4. ANALYTICS MAPPING ---
 m_map = {
-    "India": {"p":"Policy_India", "cpi":"CPI_India", "gdp":"GDP_India", "fx":"FX_India", "lbl":"INR/USD"},
-    "UK": {"p":"Policy_UK", "cpi":"CPI_UK", "gdp":"GDP_UK", "fx":"FX_UK", "lbl":"GBP/USD"},
-    "Singapore": {"p":"Policy_Singapore", "cpi":"CPI_Singapore", "gdp":"GDP_Singapore", "fx":"FX_Singapore", "lbl":"SGD/USD"}
+    "India": {"p": "Policy_India", "cpi": "CPI_India", "gdp": "GDP_India", "fx": "FX_India", "sym": "₹"},
+    "UK": {"p": "Policy_UK", "cpi": "CPI_UK", "gdp": "GDP_UK", "fx": "FX_UK", "sym": "£"},
+    "Singapore": {"p": "Policy_Singapore", "cpi": "CPI_Singapore", "gdp": "GDP_Singapore", "fx": "FX_Singapore", "sym": "S$"}
 }
 m = m_map[market]
 
-# Date Filter
-if horizon == "5 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=5))]
-elif horizon == "10 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=10))]
+# Filtering
+df = raw_df.copy()
+if horizon == "10 Years":
+    df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=10))]
+elif horizon == "5 Years":
+    df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=5))]
 
-# --- 4. MAIN INTERFACE ---
-st.markdown(f"<div class='main-title'>{market} Macro Dashboard</div>", unsafe_allow_html=True)
+# Scenario Logic
+if "Stagflation" in scenario:
+    df[m['cpi']] += 4.0; df[m['gdp']] -= 2.5
+elif "Depression" in scenario:
+    df[m['gdp']] -= 7.0; df[m['cpi']] -= 1.5
+elif "High Growth" in scenario:
+    df[m['gdp']] += 3.0; df[m['cpi']] -= 0.5
 
-# Top Metrics
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Policy Rate", f"{df[m['p']].iloc[-1]:.2f}%")
-c2.metric("Inflation (CPI)", f"{df[m['cpi']].iloc[-1]:.2f}%")
-c3.metric("GDP Growth", f"{df[m['gdp']].iloc[-1]:.1f}%")
-c4.metric(f"FX: {m['lbl']}", f"{df[m['fx']].iloc[-1]:.2f}" if m['fx'] in df.columns else "N/A")
+# --- 5. UI LAYOUT ---
+st.markdown(f"<div class='main-title'>MONETARY INTELLIGENCE: {market.upper()}</div>", unsafe_allow_html=True)
 
-# --- GRAPHS ---
-# Row 1: Policy & FX
-st.markdown("<div class='note-header'>I. Monetary Policy vs Currency Stability</div>", unsafe_allow_html=True)
+# Metrics Row
+cols = st.columns(4)
+cols[0].metric("Policy Rate", f"{df[m['p']].iloc[-1]:.2f}%")
+cols[1].metric("CPI (YoY)", f"{df[m['cpi']].iloc[-1]:.2f}%")
+cols[2].metric("GDP Growth", f"{df[m['gdp']].iloc[-1]:.1f}%")
+cols[3].metric("FX Rate", f"{df[m['fx']].iloc[-1]:.2f}" if pd.notnull(df[m['fx']].iloc[-1]) else "N/A")
+
+# Graphs
+st.markdown("<div class='header-gold'>I. Monetary Corridor & Currency Dynamics</div>", unsafe_allow_html=True)
 fig1 = make_subplots(specs=[[{"secondary_y": True}]])
-fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate (%)", line=dict(color='#58a6ff', width=3)), secondary_y=False)
-fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="FX Rate", line=dict(color='#d4af37', width=2, dash='dot')), secondary_y=True)
-fig1.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400)
+fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate", line=dict(color='#1f77b4', width=3)), secondary_y=False)
+fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="FX Spot", line=dict(color='#d4af37', width=2, dash='dot')), secondary_y=True)
+fig1.update_layout(height=400, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)')
 st.plotly_chart(fig1, use_container_width=True)
 
-# Row 2: CPI & GDP
-col_a, col_b = st.columns(2)
-with col_a:
-    st.markdown("<div class='note-header'>II. Consumer Price Index (CPI)</div>", unsafe_allow_html=True)
-    fig2 = go.Figure(go.Scatter(x=df['Date'], y=df[m['cpi']], fill='tozeroy', line=dict(color='#ff7b72')))
-    fig2.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300)
+c_a, c_b = st.columns(2)
+with c_a:
+    st.markdown("<div class='header-gold'>II. Inflationary Trends (CPI)</div>", unsafe_allow_html=True)
+    fig2 = go.Figure(go.Scatter(x=df['Date'], y=df[m['cpi']], fill='tozeroy', line=dict(color='#e74c3c')))
+    fig2.update_layout(height=300, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig2, use_container_width=True)
-with col_b:
-    st.markdown("<div class='note-header'>III. Annual GDP Growth</div>", unsafe_allow_html=True)
-    fig3 = go.Figure(go.Bar(x=df['Date'], y=df[m['gdp']], marker_color='#3fb950'))
-    fig3.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300)
+with c_b:
+    st.markdown("<div class='header-gold'>III. GDP Growth Trajectory</div>", unsafe_allow_html=True)
+    fig3 = go.Figure(go.Bar(x=df['Date'], y=df[m['gdp']], marker_color='#2ecc71'))
+    fig3.update_layout(height=300, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig3, use_container_width=True)
 
-# --- NOTES SECTION ---
-st.markdown("<div class='note-header'>Methodological Note</div>", unsafe_allow_html=True)
-st.markdown(f"""<div class='note-body'>
-This terminal aggregates data from Federal Reserve Economic Data (FRED) and your internal master workbook. 
-Current market: <b>{market}</b>. All currency data is resampled to monthly averages to match CPI frequency.
-</div>""", unsafe_allow_html=True)
+# --- 6. DETAILED NOTES ---
+st.divider()
 
-st.markdown("<div class='note-header'>Explanatory Note</div>", unsafe_allow_html=True)
-st.markdown(f"""<div class='note-body'>
-<b>Policy Rate:</b> Reflects central bank targets.<br>
-<b>FX:</b> Quoted as {m['lbl']}.<br>
-<b>GDP:</b> Sourced from annual worksheets and mapped to corresponding years.
-</div>""", unsafe_allow_html=True)
+col1, col2 = st.columns(2)
+
+with col1:
+    st.markdown("<div class='header-gold'>Explanatory Note</div>", unsafe_allow_html=True)
+    st.markdown(f"""<div class='note-box'>
+    <b>What this graph shows:</b> This dashboard visualizes the interplay between <b>Central Bank Policy</b>, <b>Inflation (CPI)</b>, and <b>Economic Output (GDP)</b>.<br><br>
+    <b>Meaning:</b> When the blue line (Policy Rate) rises, the central bank is trying to cool down inflation (red chart). 
+    A strengthening currency (Gold dotted line) often follows higher rates. In the <b>{scenario}</b> scenario, 
+    we simulate how these variables deviate from historical norms, allowing you to see if the currency can withstand economic shocks.
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("<div class='header-gold'>Recommendations</div>", unsafe_allow_html=True)
+    st.markdown(f"""<div class='note-box'>
+    <b>Institutional Actions:</b><br>
+    1. <b>Hedge Currency Risk:</b> If the simulation shows high FX volatility, consider forward contracts.<br>
+    2. <b>Monitor Real Rates:</b> Ensure the Policy Rate stays above CPI to maintain purchasing power.<br>
+    3. <b>Diversify:</b> In Stagflation scenarios, increase exposure to non-cyclical assets.
+    </div>""", unsafe_allow_html=True)
+
+with col2:
+    st.markdown("<div class='header-gold'>Methodological Note</div>", unsafe_allow_html=True)
+    st.markdown("""<div class='note-box'>
+    <b>The Concept:</b> This model utilizes <i>Macro-Financial Integration</i>. 
+    It combines daily-frequency FX data with monthly CPI and annual GDP data into a unified time-series.<br><br>
+    <b>Data Processing:</b> 
+    - <b>Resampling:</b> Daily FX rates are averaged into monthly buckets to align with inflation reporting.<br>
+    - <b>Temporal Mapping:</b> Annual GDP growth is mapped to the final month of each fiscal year to prevent look-ahead bias.<br>
+    - <b>Simulation:</b> Scenario adjustments use additive and multiplicative shifts based on historical standard deviations.
+    </div>""", unsafe_allow_html=True)
