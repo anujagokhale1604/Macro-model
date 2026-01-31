@@ -11,10 +11,18 @@ st.markdown("""
     <style>
     .stApp { background-color: #F5F5DC; color: #2c3e50; }
     section[data-testid="stSidebar"] { background-color: #2c3e50 !important; border-right: 2px solid #d4af37; }
-    section[data-testid="stSidebar"] .stWidgetLabel, section[data-testid="stSidebar"] p, 
-    section[data-testid="stSidebar"] label, section[data-testid="stSidebar"] .stSlider { color: #ecf0f1 !important; }
     
-    /* UPDATED TITLE: Royal Blue High Contrast */
+    /* Ensure all sidebar text and toggles are visible white */
+    section[data-testid="stSidebar"] .stWidgetLabel, 
+    section[data-testid="stSidebar"] p, 
+    section[data-testid="stSidebar"] label, 
+    section[data-testid="stSidebar"] .stSlider,
+    section[data-testid="stSidebar"] .stCheckbox,
+    section[data-testid="stSidebar"] .stRadio { 
+        color: #ecf0f1 !important; 
+    }
+    
+    /* TITLE: Royal Blue High Contrast */
     .main-title { 
         font-size: 38px; 
         font-weight: 900; 
@@ -57,31 +65,41 @@ def load_data():
     df_macro['Year'] = df_macro['Date'].dt.year
     df = df_macro.merge(df_gdp, on='Year', how='left').merge(fx_inr, on='Date', how='left').merge(fx_gbp, on='Date', how='left').merge(fx_sgd, on='Date', how='left')
     
-    # Gap-filling to prevent nan%
+    # Gap-filling to fix nan%
     df = df.sort_values('Date').ffill()
     return df
 
 raw_df = load_data()
 
-# --- 3. SIDEBAR WITH LOGO & ALL TOGGLES ---
+# --- 3. ALL SIDEBAR TOGGLES (EXPLICIT) ---
 with st.sidebar:
     st.markdown('<div class="logo-container">', unsafe_allow_html=True)
     st.image("https://cdn-icons-png.flaticon.com/512/2830/2830284.png", width=80) 
     st.markdown('</div>', unsafe_allow_html=True)
     
     if st.button("🔄 Reset Terminal"): st.rerun()
+    
+    st.divider()
+    # 1. Market Selection
     market = st.selectbox("Market Focus", ["India", "UK", "Singapore"])
+    
+    # 2. Lookback Window
     horizon = st.radio("Lookback Window", ["Historical", "10 Years", "5 Years"], index=1)
     
     st.divider()
     st.markdown("⚠️ **SCENARIO ANALYSIS**")
+    # 3. Global Event
     scenario = st.selectbox("Global Event", ["Standard", "Stagflation 🌪️", "Depression 📉", "High Growth 🚀"])
+    # 4. Severity Slider
     severity = st.slider("Scenario Severity (%)", 0, 100, 50)
     
     st.divider()
     st.markdown("🛠️ **ADVANCED LEVERS**")
+    # 5. Real Rate Toggle
     view_real = st.toggle("View 'Real' Interest Rates")
+    # 6. Rate Intervention Slider
     rate_intervention = st.slider("Manual Rate Intervention (bps)", -200, 200, 0, step=25)
+    # 7. Transmission Lag
     lag_effect = st.selectbox("Transmission Lag (Months)", [0, 3, 6, 12])
 
 # --- 4. DATA LOGIC ---
@@ -93,19 +111,27 @@ m_map = {
 m = m_map[market]
 df = raw_df.copy()
 
-# Date Filter
+# Apply Horizon
 if horizon == "10 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=10))]
 elif horizon == "5 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=5))]
 
-# Scenario & Manual Logic
-mult = severity / 100
+# Apply Manual Rate Intervention
 df[m['p']] += (rate_intervention / 100)
+
+# Apply Scenario Logic
+mult = severity / 100
 if "Stagflation" in scenario:
     df[m['cpi']] += (5.0 * mult); df[m['gdp']] -= (3.0 * mult)
 elif "Depression" in scenario:
     df[m['gdp']] -= (8.0 * mult); df[m['cpi']] -= (2.0 * mult)
+elif "High Growth" in scenario:
+    df[m['gdp']] += (4.0 * mult); df[m['cpi']] -= (1.0 * mult)
 
-if view_real: df[m['p']] = df[m['p']] - df[m['cpi']]
+# Apply Real Rate Calculation
+if view_real: 
+    df[m['p']] = df[m['p']] - df[m['cpi']]
+
+# Apply Lag Logic
 if lag_effect > 0:
     df[m['cpi']] = df[m['cpi']].shift(lag_effect)
     df[m['gdp']] = df[m['gdp']].shift(lag_effect)
@@ -113,7 +139,7 @@ if lag_effect > 0:
 # --- 5. DASHBOARD LAYOUT ---
 st.markdown(f"<div class='main-title'>{market.upper()} // STRATEGIC MACRO TERMINAL</div>", unsafe_allow_html=True)
 
-# Metric Helpers (Gap proof)
+# Latest Metrics (Gap proof)
 def get_val(series):
     return series.dropna().iloc[-1] if not series.dropna().empty else 0
 
@@ -123,14 +149,16 @@ c2.metric("Inflation (CPI)", f"{get_val(df[m['cpi']]):.2f}%")
 c3.metric("GDP Growth", f"{get_val(df[m['gdp']]):.1f}%")
 c4.metric(f"FX Spot ({m['sym']})", f"{get_val(df[m['fx']]):.2f}")
 
-# Graphs
+# Graph 1: Monetary Corridor
 st.markdown("<div class='header-gold'>I. Monetary Corridor & Currency Sensitivity</div>", unsafe_allow_html=True)
 fig1 = make_subplots(specs=[[{"secondary_y": True}]])
-fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Interest Rate", line=dict(color='#1f77b4', width=3)), secondary_y=False)
-fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="FX Spot", line=dict(color='#d4af37', width=2, dash='dot')), secondary_y=True)
+label_p = "Real Interest Rate" if view_real else "Nominal Rate"
+fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name=label_p, line=dict(color='#1f77b4', width=3)), secondary_y=False)
+fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="Exchange Rate", line=dict(color='#d4af37', width=2, dash='dot')), secondary_y=True)
 fig1.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400)
 st.plotly_chart(fig1, use_container_width=True)
 
+# Graph 2: Combined Health
 st.markdown("<div class='header-gold'>II. Economic Health: Growth vs. Inflation</div>", unsafe_allow_html=True)
 fig2 = make_subplots(specs=[[{"secondary_y": True}]])
 fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="GDP Growth (%)", marker_color='#2ecc71', opacity=0.7), secondary_y=False)
@@ -138,32 +166,31 @@ fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI Inflation (%)"
 fig2.update_layout(template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', height=400)
 st.plotly_chart(fig2, use_container_width=True)
 
-# --- 6. ORIGINAL INSTITUTIONAL NOTES ---
+# --- 6. INSTITUTIONAL NOTES ---
 st.divider()
-colA, colB = st.columns(2)
+col_left, col_right = st.columns(2)
 
-with colA:
+with col_left:
     st.markdown("<div class='header-gold'>Explanatory Note (The 'Why')</div>", unsafe_allow_html=True)
     st.markdown(f"""<div class='note-box'>
-    <b>What are you looking at?</b><br>
-    The top graph shows how interest rates affect the value of the currency. Generally, higher rates attract investors, which strengthens the local currency.<br><br>
-    <b>The Health Chart:</b> This combined view shows <b>Growth (Bars)</b> and <b>Inflation (Red Line)</b>. A strong economy typically has rising bars and stable inflation. If you see the red line (prices) rising while bars (growth) fall, that is "Stagflation"—a sign of economic distress.
+    <b>Visual Interpretation:</b> The first chart tracks how interest rates influence your currency. When rates go up, it usually makes the currency more attractive to global investors.<br><br>
+    <b>The Health Chart:</b> This displays <b>Growth (Bars)</b> alongside <b>Inflation (Red Line)</b>. A healthy economy has tall green bars and a stable red line. If the red line is rising while bars are falling, the economy is in a "Stagflation" phase.
     </div>""", unsafe_allow_html=True)
 
-    st.markdown("<div class='header-gold'>Recommendations</div>", unsafe_allow_html=True)
+    st.markdown("<div class='header-gold'>Institutional Recommendations</div>", unsafe_allow_html=True)
     st.markdown("""<div class='note-box'>
-    - <b>If Inflation > Policy Rate:</b> Real yields are negative. Investors may look for alternative safe havens like Gold.<br>
-    - <b>If GDP is slowing:</b> Tightening monetary policy further might risk a recession. Monitor the balance between rates and growth.<br>
-    - <b>FX Volatility:</b> Use the intervention slider to model how significant a rate hike is needed to maintain currency floors.
+    1. <b>Monitor Real Yields:</b> If Inflation is higher than the Policy Rate, investors are losing money in real terms.<br>
+    2. <b>Defensive Positioning:</b> During "Depression" or "Stagflation" simulations, prioritize capital preservation.<br>
+    3. <b>Lag Awareness:</b> Remember that a rate change today usually takes 6+ months to impact the CPI line.
     </div>""", unsafe_allow_html=True)
 
-with colB:
+with col_right:
     st.markdown("<div class='header-gold'>Methodological Note (The 'How')</div>", unsafe_allow_html=True)
     st.markdown("""<div class='note-box'>
     <b>The Conceptual Framework:</b> This terminal utilizes <i>Data Synthesis Integration</i>. It solves the "Frequency Mismatch" problem 
-    inherent in macroeconomics by harmonizing daily financial data (FX) with quarterly/annual real-economy indicators (GDP).<br><br>
+    by harmonizing daily financial data (FX) with quarterly/annual indicators (GDP).<br><br>
     <b>Core Concepts:</b><br>
     - <b>Temporal Resampling:</b> Daily FX observations are averaged into monthly timestamps to create a linear correlation with CPI.<br>
-    - <b>Step-Interpolation:</b> Annual GDP growth is treated as a constant for the relevant 12-month period to ensure the charts remain scannable.<br>
-    - <b>Stress Testing:</b> Scenario adjustments are applied to the most recent data to project potential future deviations.
+    - <b>Step-Interpolation:</b> Annual GDP growth is treated as a constant for the relevant 12-month period.<br>
+    - <b>Stress Testing:</b> Scenario adjustments use additive shifts based on historical volatility.
     </div>""", unsafe_allow_html=True)
