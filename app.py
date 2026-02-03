@@ -11,15 +11,17 @@ st.markdown("""
     <style>
     @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css');
 
-    /* GLOBAL THEME - BEIGE & TIMES NEW ROMAN */
-    html, body, [class*="st-"], .stMarkdown, p { 
-        font-family: 'Times New Roman', Times, serif !important; 
+    /* THE ONLY CHANGE: GLOBAL FONT FORCE */
+    * {
+        font-family: 'Times New Roman', Times, serif !important;
     }
+
+    /* GLOBAL THEME - BEIGE */
     .stApp { background-color: #F5F5DC; color: #1A1A1A; }
 
-    /* SIDEBAR - HIGH CONTRAST AGAINST BEIGE/GRAY */
+    /* SIDEBAR - HIGH CONTRAST */
     section[data-testid="stSidebar"] {
-        background-color: #E8E8D0 !important; /* Slightly darker beige for sidebar */
+        background-color: #E8E8D0 !important; 
         border-right: 1px solid #8B4513;
     }
 
