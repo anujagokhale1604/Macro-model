@@ -7,10 +7,11 @@ import os
 # --- 1. CHIC RESEARCH UI ENGINE ---
 st.set_page_config(page_title="Macro Intel Pro", layout="wide")
 
+# Injection of Font Awesome via Markdown to ensure symbols are visible
+st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">', unsafe_allow_html=True)
+
 st.markdown("""
     <style>
-    @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css');
-
     /* GLOBAL FONT FORCE */
     * {
         font-family: 'Times New Roman', Times, serif !important;
@@ -183,7 +184,7 @@ if df_raw is not None:
     # III. LAYMAN'S NOTE
     st.markdown("<div class='section-header'><i class='fa-solid fa-user-check'></i> III. Layman's Recommendation</div>", unsafe_allow_html=True)
     st.markdown(f"""<div class='layman-card'>
-        <b>Current Guidance:</b><br>
+        <b>Strategic Outlook:</b><br>
         • <b>Borrowing:</b> {'Rates are restrictive; high costs for new loans.' if lp > 4.5 else 'Accommodative rates favor borrowing for investment.'}<br>
         • <b>Savings:</b> {'Attractive returns for fixed-income and savings.' if lp > 4.5 else 'Low yields suggest seeking equity/growth assets.'}<br>
         • <b>Cost of Living:</b> {'Inflation ({lc:.1f}%) is high; prioritize essential spending.' if lc > 3.0 else 'Stable prices support consumer purchasing power.'}
@@ -195,7 +196,8 @@ if df_raw is not None:
     with colA:
         st.markdown("<div class='section-header'><i class='fa-solid fa-table'></i> IV. Correlation Matrix</div>", unsafe_allow_html=True)
         corr = df[[m['p'], m['cpi'], m['gdp'], m['fx']]].corr()
-        st.dataframe(corr.style.background_gradient(cmap='Greys').format("{:.2f}"), use_container_width=True)
+        # Changed background gradient to professional Blues
+        st.dataframe(corr.style.background_gradient(cmap='Blues').format("{:.2f}"), use_container_width=True)
     with colB:
         st.markdown("<div class='section-header'><i class='fa-solid fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
         st.markdown(f"""<div class='method-card'>
