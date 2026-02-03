@@ -16,10 +16,10 @@ st.markdown("""
         font-family: 'Times New Roman', Times, serif !important;
     }
 
-    /* GLOBAL THEME - CHIC BEIGE (Desaturated/Professional) */
+    /* GLOBAL THEME - CHIC BEIGE */
     .stApp { background-color: #F2EFE9; color: #2C2C2C; }
 
-    /* SIDEBAR - CONTRASTING CHIC TONE */
+    /* SIDEBAR - HIGH CONTRAST */
     section[data-testid="stSidebar"] {
         background-color: #E5E1D8 !important; 
         border-right: 1px solid #A39B8F;
@@ -36,15 +36,16 @@ st.markdown("""
         text-transform: uppercase;
     }
 
-    /* CARDS & CONTAINERS */
+    /* HARMONIZED CARDS */
     .analyst-card { 
         padding: 20px; border: 1px solid #A39B8F; 
         background-color: #FFFFFF; margin-bottom: 20px; 
         border-left: 5px solid #002366;
     }
     .layman-card {
-        padding: 20px; background-color: #002366; 
-        color: #FFFFFF; margin-bottom: 25px; border-left: 10px solid #C5A059;
+        padding: 20px; background-color: #FDFCFB; 
+        color: #1A1A1A; margin-bottom: 25px; border: 1px solid #A39B8F;
+        border-left: 10px solid #002366;
     }
     .method-card { 
         padding: 20px; background-color: #FAF9F6; 
@@ -59,7 +60,6 @@ st.markdown("""
     .section-header { 
         color: #7A6D5D; font-weight: bold; font-size: 1.3rem; 
         margin-top: 30px; margin-bottom: 15px; text-transform: uppercase;
-        display: flex; align-items: center; gap: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -108,7 +108,7 @@ with st.sidebar:
     st.divider()
     sentiment = st.select_slider("7. MARKET SENTIMENT", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
 
-# --- 4. ENGINE ---
+# --- 4. ANALYTICS ENGINE ---
 df_raw = load_data()
 if df_raw is not None:
     m_map = {
@@ -118,22 +118,34 @@ if df_raw is not None:
     }
     m = m_map[market]; df = df_raw.copy()
 
-    if horizon == "10 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=10))]
-    elif horizon == "5 Years": df = df[df['Date'] > (df['Date'].max() - pd.DateOffset(years=5))]
-
+    # Apply Scenario logic
     mult = severity / 100
     df[m['p']] += (rate_intervention / 100)
-    if scenario == "Stagflation 🌪️": df[m['cpi']] += (5.0 * mult); df[m['gdp']] -= (3.0 * mult)
-    elif scenario == "Depression 📉": df[m['gdp']] -= (8.0 * mult); df[m['cpi']] -= (2.0 * mult)
-    elif scenario == "High Growth 🚀": df[m['gdp']] += (4.0 * mult); df[m['cpi']] -= (1.0 * mult)
+    
+    scenario_desc = ""
+    if scenario == "Stagflation 🌪️":
+        df[m['cpi']] += (5.0 * mult)
+        df[m['gdp']] -= (3.0 * mult)
+        scenario_desc = "driven by high inflation coupled with stagnant growth."
+    elif scenario == "Depression 📉":
+        df[m['gdp']] -= (8.0 * mult)
+        df[m['cpi']] -= (2.0 * mult)
+        scenario_desc = "reflecting a severe contraction in aggregate demand."
+    elif scenario == "High Growth 🚀":
+        df[m['gdp']] += (4.0 * mult)
+        df[m['cpi']] -= (1.0 * mult)
+        scenario_desc = "indicating strong productivity and expansion."
+    else:
+        scenario_desc = "following historical baseline patterns."
 
     avg_g = df[m['gdp']].mean()
     df['Taylor'] = m['n'] + 0.5*(df[m['cpi']] - m['t']) + 0.5*(df[m['gdp']] - avg_g)
+    
     if view_real: df[m['p']] -= df[m['cpi']]
     if lag > 0: df[m['cpi']] = df[m['cpi']].shift(lag); df[m['gdp']] = df[m['gdp']].shift(lag)
 
-    # --- 5. UI ---
-    st.markdown(f"<div class='main-title'><i class='fa-solid fa-scale-balanced'></i> {market.upper()} STRATEGY TERMINAL</div>", unsafe_allow_html=True)
+    # --- 5. UI DISPLAY ---
+    st.markdown(f"<div class='main-title'><i class='fa-solid fa-scale-balanced'></i> {market.upper()} MACRO TERMINAL</div>", unsafe_allow_html=True)
     
     def get_v(s): return s.dropna().iloc[-1] if not s.dropna().empty else 0
     lp, lc, lg, lt = get_v(df[m['p']]), get_v(df[m['cpi']]), get_v(df[m['gdp']]), get_v(df['Taylor'])
@@ -144,6 +156,7 @@ if df_raw is not None:
     c3.metric("GDP GROWTH", f"{lg:.1f}%")
     c4.metric(f"FX ({m['sym']})", f"{get_v(df[m['fx']]):.2f}")
 
+    # I. MONETARY TRANSMISSION
     st.markdown("<div class='section-header'><i class='fa-solid fa-chart-line'></i> I. Monetary Transmission Analysis</div>", unsafe_allow_html=True)
     fig1 = make_subplots(specs=[[{"secondary_y": True}]])
     fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate", line=dict(color='#002366', width=3)), secondary_y=False)
@@ -152,38 +165,43 @@ if df_raw is not None:
     fig1.update_layout(height=350, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Times New Roman"))
     st.plotly_chart(fig1, use_container_width=True)
 
+    # DYNAMIC ANALYST NOTE
     st.markdown(f"""<div class='analyst-card'>
-        <b>Professional Note:</b> Rates in {market} are currently positioned <b>{'above' if lp > lt else 'below'}</b> the Taylor Rule benchmark. 
-        This suggests a <b>{'Hawkish' if lp > lt else 'Dovish'}</b> policy bias given the simulated {scenario} framework.
+        <b>Analyst Interpretation:</b> The terminal is currently simulating a <b>{scenario}</b> environment, {scenario_desc} 
+        Under these conditions, rates are <b>{'above' if lp > lt else 'below'}</b> the Taylor Rule estimate. 
+        {'This suggests a hawkish attempt to curb inflation despite growth risks.' if scenario == 'Stagflation 🌪️' else 'This highlights the central bank’s struggle to stimulate a contracting economy.' if scenario == 'Depression 📉' else 'Policy appears balanced against historical benchmarks.'}
     </div>""", unsafe_allow_html=True)
 
-    st.markdown("<div class='section-header'><i class='fa-solid fa-chart-column'></i> II. Macroeconomic Volatility</div>", unsafe_allow_html=True)
+    # II. GROWTH vs INFLATION
+    st.markdown("<div class='section-header'><i class='fa-solid fa-chart-column'></i> II. Real Economy Activity</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
     fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="GDP Growth", marker_color='#BDB7AB'), secondary_y=False)
     fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI Inflation", line=dict(color='#A52A2A', width=3)), secondary_y=True)
     fig2.update_layout(height=350, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Times New Roman"))
     st.plotly_chart(fig2, use_container_width=True)
 
+    # III. LAYMAN'S NOTE
     st.markdown("<div class='section-header'><i class='fa-solid fa-user-check'></i> III. Layman's Recommendation</div>", unsafe_allow_html=True)
     st.markdown(f"""<div class='layman-card'>
-        <b>Strategic Outlook:</b><br>
-        • <b>Debt:</b> {'Interest rates are restrictive. Delay variable-rate borrowing.' if lp > 4.5 else 'Accommodative rates favor borrowing for investment.'}<br>
-        • <b>Liquidity:</b> {'Capital is earning high returns in savings/FDs.' if lp > 4.5 else 'Low yields suggest seeking equity or alternative assets.'}<br>
-        • <b>Purchasing Power:</b> {'Inflation ({lc:.1f}%) is elevated; expect higher cost of living.' if lc > 3.0 else 'Stable inflation environment supports consumer spending.'}
+        <b>Current Guidance:</b><br>
+        • <b>Borrowing:</b> {'Rates are restrictive; high costs for new loans.' if lp > 4.5 else 'Accommodative rates favor borrowing for investment.'}<br>
+        • <b>Savings:</b> {'Attractive returns for fixed-income and savings.' if lp > 4.5 else 'Low yields suggest seeking equity/growth assets.'}<br>
+        • <b>Cost of Living:</b> {'Inflation ({lc:.1f}%) is high; prioritize essential spending.' if lc > 3.0 else 'Stable prices support consumer purchasing power.'}
     </div>""", unsafe_allow_html=True)
 
+    # IV/V. STATS
     st.divider()
     colA, colB = st.columns([1, 1.2])
     with colA:
-        st.markdown("<div class='section-header'>IV. Correlation Matrix</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-header'><i class='fa-solid fa-table'></i> IV. Correlation Matrix</div>", unsafe_allow_html=True)
         corr = df[[m['p'], m['cpi'], m['gdp'], m['fx']]].corr()
-        st.dataframe(corr.style.background_gradient(cmap='RdYlGn').format("{:.2f}"), use_container_width=True)
+        st.dataframe(corr.style.background_gradient(cmap='Greys').format("{:.2f}"), use_container_width=True)
     with colB:
-        st.markdown("<div class='section-header'>V. Methodological Note</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-header'><i class='fa-solid fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
         st.markdown(f"""<div class='method-card'>
             <b>Concept: Taylor Rule Modelling</b><br>
-            The neutral policy rate is derived from the Taylor Rule: $i = r^* + \pi + 0.5(\pi - \pi^*) + 0.5(y - y^*)$.<br>
-            This dashboard highlights policy deviations to help analysts identify potential central bank interventions or currency misalignments.
+            The neutral policy rate is derived from: $i = r^* + \pi + 0.5(\pi - \pi^*) + 0.5(y - y^*)$.<br>
+            The <b>{scenario}</b> scenario modifies these inputs by adjusting inflation expectations and GDP growth forecasts, allowing you to visualize how policy should pivot during market shocks.
         </div>""", unsafe_allow_html=True)
 
 else:
