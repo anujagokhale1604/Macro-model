@@ -7,33 +7,29 @@ import os
 # --- 1. CHIC RESEARCH UI ENGINE ---
 st.set_page_config(page_title="Macro Intel Pro", layout="wide")
 
-# Injection of Font Awesome via Markdown to ensure symbols are visible
+# Persistent Font Injection
 st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">', unsafe_allow_html=True)
 
 st.markdown("""
     <style>
     /* GLOBAL FONT FORCE */
-    * {
-        font-family: 'Times New Roman', Times, serif !important;
-    }
+    * { font-family: 'Times New Roman', Times, serif !important; }
 
     /* GLOBAL THEME - CHIC BEIGE */
     .stApp { background-color: #F2EFE9; color: #2C2C2C; }
 
-    /* SIDEBAR - HIGH CONTRAST */
+    /* SIDEBAR STYLING */
     section[data-testid="stSidebar"] {
         background-color: #E5E1D8 !important; 
         border-right: 1px solid #A39B8F;
     }
 
-    /* FORCING TOGGLE TITLES TO VISIBLE BLACK */
     section[data-testid="stSidebar"] .stWidgetLabel p, 
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] span,
     section[data-testid="stSidebar"] p {
         color: #1A1A1A !important; 
         font-weight: bold !important;
-        font-size: 1.05rem !important;
         text-transform: uppercase;
     }
 
@@ -47,10 +43,6 @@ st.markdown("""
         padding: 20px; background-color: #FDFCFB; 
         color: #1A1A1A; margin-bottom: 25px; border: 1px solid #A39B8F;
         border-left: 10px solid #002366;
-    }
-    .method-card { 
-        padding: 20px; background-color: #FAF9F6; 
-        color: #1A1A1A; font-size: 0.95rem; border: 1px solid #A39B8F;
     }
     
     /* TITLES & HEADERS */
@@ -95,7 +87,14 @@ def load_data():
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#000000;'><i class='fa-solid fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#000000;'><i class='fas fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
+    
+    # RESET BUTTON
+    if st.button("RESET PARAMETERS", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+    
+    st.divider()
     market = st.selectbox("1. SELECT MARKET", ["India", "UK", "Singapore"])
     horizon = st.radio("2. TIME HORIZON", ["Historical", "10 Years", "5 Years"], index=1)
     st.divider()
@@ -119,46 +118,37 @@ if df_raw is not None:
     }
     m = m_map[market]; df = df_raw.copy()
 
-    # Apply Scenario logic
     mult = severity / 100
     df[m['p']] += (rate_intervention / 100)
     
-    scenario_desc = ""
     if scenario == "Stagflation 🌪️":
-        df[m['cpi']] += (5.0 * mult)
-        df[m['gdp']] -= (3.0 * mult)
-        scenario_desc = "driven by high inflation coupled with stagnant growth."
+        df[m['cpi']] += (5.0 * mult); df[m['gdp']] -= (3.0 * mult)
+        desc = "The policy setup reflects a Stagflation shock—combining supply-side price pressures with low output."
     elif scenario == "Depression 📉":
-        df[m['gdp']] -= (8.0 * mult)
-        df[m['cpi']] -= (2.0 * mult)
-        scenario_desc = "reflecting a severe contraction in aggregate demand."
+        df[m['gdp']] -= (8.0 * mult); df[m['cpi']] -= (2.0 * mult)
+        desc = "The simulation models a Depressionary environment with severe demand destruction."
     elif scenario == "High Growth 🚀":
-        df[m['gdp']] += (4.0 * mult)
-        df[m['cpi']] -= (1.0 * mult)
-        scenario_desc = "indicating strong productivity and expansion."
+        df[m['gdp']] += (4.0 * mult); df[m['cpi']] -= (1.0 * mult)
+        desc = "A High Growth scenario is active, reflecting robust expansion and contained inflation."
     else:
-        scenario_desc = "following historical baseline patterns."
+        desc = "Current data follows historical baseline levels."
 
     avg_g = df[m['gdp']].mean()
     df['Taylor'] = m['n'] + 0.5*(df[m['cpi']] - m['t']) + 0.5*(df[m['gdp']] - avg_g)
-    
     if view_real: df[m['p']] -= df[m['cpi']]
     if lag > 0: df[m['cpi']] = df[m['cpi']].shift(lag); df[m['gdp']] = df[m['gdp']].shift(lag)
 
     # --- 5. UI DISPLAY ---
-    st.markdown(f"<div class='main-title'><i class='fa-solid fa-scale-balanced'></i> {market.upper()} MACRO TERMINAL</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='main-title'><i class='fas fa-scale-balanced'></i> {market.upper()} MACRO TERMINAL</div>", unsafe_allow_html=True)
     
-    def get_v(s): return s.dropna().iloc[-1] if not s.dropna().empty else 0
-    lp, lc, lg, lt = get_v(df[m['p']]), get_v(df[m['cpi']]), get_v(df[m['gdp']]), get_v(df['Taylor'])
-
+    lp, lc, lg = df[m['p']].iloc[-1], df[m['cpi']].iloc[-1], df[m['gdp']].iloc[-1]
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("POLICY RATE", f"{lp:.2f}%")
     c2.metric("CPI INFLATION", f"{lc:.2f}%")
     c3.metric("GDP GROWTH", f"{lg:.1f}%")
-    c4.metric(f"FX ({m['sym']})", f"{get_v(df[m['fx']]):.2f}")
+    c4.metric(f"FX ({m['sym']})", f"{df[m['fx']].iloc[-1]:.2f}")
 
-    # I. MONETARY TRANSMISSION
-    st.markdown("<div class='section-header'><i class='fa-solid fa-chart-line'></i> I. Monetary Transmission Analysis</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'><i class='fas fa-chart-line'></i> I. Monetary Transmission Analysis</div>", unsafe_allow_html=True)
     fig1 = make_subplots(specs=[[{"secondary_y": True}]])
     fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate", line=dict(color='#002366', width=3)), secondary_y=False)
     if show_taylor: fig1.add_trace(go.Scatter(x=df['Date'], y=df['Taylor'], name="Taylor Rule", line=dict(color='#8B4513', dash='dash')), secondary_y=False)
@@ -166,45 +156,26 @@ if df_raw is not None:
     fig1.update_layout(height=350, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Times New Roman"))
     st.plotly_chart(fig1, use_container_width=True)
 
-    # DYNAMIC ANALYST NOTE
-    st.markdown(f"""<div class='analyst-card'>
-        <b>Analyst Interpretation:</b> The terminal is currently simulating a <b>{scenario}</b> environment, {scenario_desc} 
-        Under these conditions, rates are <b>{'above' if lp > lt else 'below'}</b> the Taylor Rule estimate. 
-        {'This suggests a hawkish attempt to curb inflation despite growth risks.' if scenario == 'Stagflation 🌪️' else 'This highlights the central bank’s struggle to stimulate a contracting economy.' if scenario == 'Depression 📉' else 'Policy appears balanced against historical benchmarks.'}
-    </div>""", unsafe_allow_html=True)
+    st.markdown(f"<div class='analyst-card'><b>Analyst Note:</b> {desc} Rates are {'above' if lp > df['Taylor'].iloc[-1] else 'below'} the Taylor Rule neutral point.</div>", unsafe_allow_html=True)
 
-    # II. GROWTH vs INFLATION
-    st.markdown("<div class='section-header'><i class='fa-solid fa-chart-column'></i> II. Real Economy Activity</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'><i class='fas fa-chart-column'></i> II. Real Economy Activity</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
     fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="GDP Growth", marker_color='#BDB7AB'), secondary_y=False)
     fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI Inflation", line=dict(color='#A52A2A', width=3)), secondary_y=True)
     fig2.update_layout(height=350, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Times New Roman"))
     st.plotly_chart(fig2, use_container_width=True)
 
-    # III. LAYMAN'S NOTE
-    st.markdown("<div class='section-header'><i class='fa-solid fa-user-check'></i> III. Layman's Recommendation</div>", unsafe_allow_html=True)
-    st.markdown(f"""<div class='layman-card'>
-        <b>Strategic Outlook:</b><br>
-        • <b>Borrowing:</b> {'Rates are restrictive; high costs for new loans.' if lp > 4.5 else 'Accommodative rates favor borrowing for investment.'}<br>
-        • <b>Savings:</b> {'Attractive returns for fixed-income and savings.' if lp > 4.5 else 'Low yields suggest seeking equity/growth assets.'}<br>
-        • <b>Cost of Living:</b> {'Inflation ({lc:.1f}%) is high; prioritize essential spending.' if lc > 3.0 else 'Stable prices support consumer purchasing power.'}
-    </div>""", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'><i class='fas fa-user-check'></i> III. Layman's Recommendation</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='layman-card'><b>Strategic Guidance:</b> Borrowing is {'expensive' if lp > 4.5 else 'affordable'}. Inflation at {lc:.1f}% is {'high' if lc > 3 else 'stable'}.</div>", unsafe_allow_html=True)
 
-    # IV/V. STATS
-    st.divider()
     colA, colB = st.columns([1, 1.2])
     with colA:
-        st.markdown("<div class='section-header'><i class='fa-solid fa-table'></i> IV. Correlation Matrix</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-header'><i class='fas fa-table'></i> IV. Correlation Matrix</div>", unsafe_allow_html=True)
         corr = df[[m['p'], m['cpi'], m['gdp'], m['fx']]].corr()
-        # Changed background gradient to professional Blues
-        st.dataframe(corr.style.background_gradient(cmap='Blues').format("{:.2f}"), use_container_width=True)
+        st.dataframe(corr.style.background_gradient(cmap='PuBu').format("{:.2f}"), use_container_width=True)
     with colB:
-        st.markdown("<div class='section-header'><i class='fa-solid fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
-        st.markdown(f"""<div class='method-card'>
-            <b>Concept: Taylor Rule Modelling</b><br>
-            The neutral policy rate is derived from: $i = r^* + \pi + 0.5(\pi - \pi^*) + 0.5(y - y^*)$.<br>
-            The <b>{scenario}</b> scenario modifies these inputs by adjusting inflation expectations and GDP growth forecasts, allowing you to visualize how policy should pivot during market shocks.
-        </div>""", unsafe_allow_html=True)
+        st.markdown("<div class='section-header'><i class='fas fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
+        st.info("The Taylor Rule monitors the delta between target and actual inflation. Scenarios modify GDP/CPI baseline projections.")
 
 else:
-    st.error("Check .xlsx files.")
+    st.error("Please ensure EM_Macro_Data_India_SG_UK.xlsx and FX files are uploaded.")
