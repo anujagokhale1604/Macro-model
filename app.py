@@ -4,25 +4,25 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 
-# --- 1. RESEARCH-STYLE UI ENGINE ---
+# --- 1. CHIC RESEARCH UI ENGINE ---
 st.set_page_config(page_title="Macro Intel Pro", layout="wide")
 
 st.markdown("""
     <style>
     @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css');
 
-    /* THE ONLY CHANGE: GLOBAL FONT FORCE */
+    /* GLOBAL FONT FORCE */
     * {
         font-family: 'Times New Roman', Times, serif !important;
     }
 
-    /* GLOBAL THEME - BEIGE */
-    .stApp { background-color: #F5F5DC; color: #1A1A1A; }
+    /* GLOBAL THEME - CHIC BEIGE (Desaturated/Professional) */
+    .stApp { background-color: #F2EFE9; color: #2C2C2C; }
 
-    /* SIDEBAR - HIGH CONTRAST */
+    /* SIDEBAR - CONTRASTING CHIC TONE */
     section[data-testid="stSidebar"] {
-        background-color: #E8E8D0 !important; 
-        border-right: 1px solid #8B4513;
+        background-color: #E5E1D8 !important; 
+        border-right: 1px solid #A39B8F;
     }
 
     /* FORCING TOGGLE TITLES TO VISIBLE BLACK */
@@ -30,7 +30,7 @@ st.markdown("""
     section[data-testid="stSidebar"] label,
     section[data-testid="stSidebar"] span,
     section[data-testid="stSidebar"] p {
-        color: #000000 !important; 
+        color: #1A1A1A !important; 
         font-weight: bold !important;
         font-size: 1.05rem !important;
         text-transform: uppercase;
@@ -38,26 +38,26 @@ st.markdown("""
 
     /* CARDS & CONTAINERS */
     .analyst-card { 
-        padding: 20px; border: 1px solid #8B4513; 
+        padding: 20px; border: 1px solid #A39B8F; 
         background-color: #FFFFFF; margin-bottom: 20px; 
         border-left: 5px solid #002366;
     }
     .layman-card {
         padding: 20px; background-color: #002366; 
-        color: #FFFFFF; margin-bottom: 25px; border-left: 10px solid #D4AF37;
+        color: #FFFFFF; margin-bottom: 25px; border-left: 10px solid #C5A059;
     }
     .method-card { 
-        padding: 20px; background-color: #FFF8E7; 
-        color: #111827; font-size: 0.95rem; border: 1px solid #8B4513;
+        padding: 20px; background-color: #FAF9F6; 
+        color: #1A1A1A; font-size: 0.95rem; border: 1px solid #A39B8F;
     }
     
     /* TITLES & HEADERS */
     .main-title { 
         font-size: 36px; font-weight: bold; color: #002366; 
-        border-bottom: 3px solid #8B4513; padding-bottom: 10px; margin-bottom: 30px; 
+        border-bottom: 3px solid #C5A059; padding-bottom: 10px; margin-bottom: 30px; 
     }
     .section-header { 
-        color: #8B4513; font-weight: bold; font-size: 1.3rem; 
+        color: #7A6D5D; font-weight: bold; font-size: 1.3rem; 
         margin-top: 30px; margin-bottom: 15px; text-transform: uppercase;
         display: flex; align-items: center; gap: 10px;
     }
@@ -94,7 +94,7 @@ def load_data():
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#000000;'><i class='fa-solid fa-compass'></i> NAVIGATION</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#000000;'><i class='fa-solid fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
     market = st.selectbox("1. SELECT MARKET", ["India", "UK", "Singapore"])
     horizon = st.radio("2. TIME HORIZON", ["Historical", "10 Years", "5 Years"], index=1)
     st.divider()
@@ -133,7 +133,7 @@ if df_raw is not None:
     if lag > 0: df[m['cpi']] = df[m['cpi']].shift(lag); df[m['gdp']] = df[m['gdp']].shift(lag)
 
     # --- 5. UI ---
-    st.markdown(f"<div class='main-title'><i class='fa-solid fa-building-columns'></i> {market.upper()} MACRO TERMINAL</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='main-title'><i class='fa-solid fa-scale-balanced'></i> {market.upper()} STRATEGY TERMINAL</div>", unsafe_allow_html=True)
     
     def get_v(s): return s.dropna().iloc[-1] if not s.dropna().empty else 0
     lp, lc, lg, lt = get_v(df[m['p']]), get_v(df[m['cpi']]), get_v(df[m['gdp']]), get_v(df['Taylor'])
@@ -153,23 +153,23 @@ if df_raw is not None:
     st.plotly_chart(fig1, use_container_width=True)
 
     st.markdown(f"""<div class='analyst-card'>
-        <b>Professional Summary:</b> Rates in {market} are trending <b>{'above' if lp > lt else 'below'}</b> the Taylor Rule estimate. 
-        This indicates a <b>{'Hawkish' if lp > lt else 'Dovish'}</b> policy bias under current {scenario} conditions.
+        <b>Professional Note:</b> Rates in {market} are currently positioned <b>{'above' if lp > lt else 'below'}</b> the Taylor Rule benchmark. 
+        This suggests a <b>{'Hawkish' if lp > lt else 'Dovish'}</b> policy bias given the simulated {scenario} framework.
     </div>""", unsafe_allow_html=True)
 
-    st.markdown("<div class='section-header'><i class='fa-solid fa-chart-column'></i> II. Real Economy Activity</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'><i class='fa-solid fa-chart-column'></i> II. Macroeconomic Volatility</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
-    fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="GDP Growth", marker_color='#A9A9A9'), secondary_y=False)
-    fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI Inflation", line=dict(color='#B22222', width=3)), secondary_y=True)
+    fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="GDP Growth", marker_color='#BDB7AB'), secondary_y=False)
+    fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI Inflation", line=dict(color='#A52A2A', width=3)), secondary_y=True)
     fig2.update_layout(height=350, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', font=dict(family="Times New Roman"))
     st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown("<div class='section-header'><i class='fa-solid fa-users'></i> III. Layman's Recommendation</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'><i class='fa-solid fa-user-check'></i> III. Layman's Recommendation</div>", unsafe_allow_html=True)
     st.markdown(f"""<div class='layman-card'>
-        <b>Current Guidance:</b><br>
-        • <b>Loans:</b> {'High rates make borrowing expensive.' if lp > 4.5 else 'Low rates favor new financing.'}<br>
-        • <b>Savings:</b> {'Excellent environment for high-yield savings.' if lp > 4.5 else 'Consider other assets as savings yields are low.'}<br>
-        • <b>Prices:</b> {'High inflation ({lc:.1f}%) is eroding purchasing power.' if lc > 3.0 else 'Inflation is stable.'}
+        <b>Strategic Outlook:</b><br>
+        • <b>Debt:</b> {'Interest rates are restrictive. Delay variable-rate borrowing.' if lp > 4.5 else 'Accommodative rates favor borrowing for investment.'}<br>
+        • <b>Liquidity:</b> {'Capital is earning high returns in savings/FDs.' if lp > 4.5 else 'Low yields suggest seeking equity or alternative assets.'}<br>
+        • <b>Purchasing Power:</b> {'Inflation ({lc:.1f}%) is elevated; expect higher cost of living.' if lc > 3.0 else 'Stable inflation environment supports consumer spending.'}
     </div>""", unsafe_allow_html=True)
 
     st.divider()
@@ -181,9 +181,9 @@ if df_raw is not None:
     with colB:
         st.markdown("<div class='section-header'>V. Methodological Note</div>", unsafe_allow_html=True)
         st.markdown(f"""<div class='method-card'>
-            <b>Concept: Taylor Rule Equilibrium</b><br>
-            The benchmark rate is calculated via: $i = r^* + \pi + 0.5(\pi - \pi^*) + 0.5(y - y^*)$.<br>
-            This terminal monitors the spread between actual policy and this theoretical neutral rate to identify market imbalances.
+            <b>Concept: Taylor Rule Modelling</b><br>
+            The neutral policy rate is derived from the Taylor Rule: $i = r^* + \pi + 0.5(\pi - \pi^*) + 0.5(y - y^*)$.<br>
+            This dashboard highlights policy deviations to help analysts identify potential central bank interventions or currency misalignments.
         </div>""", unsafe_allow_html=True)
 
 else:
