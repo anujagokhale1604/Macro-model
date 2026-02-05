@@ -60,41 +60,6 @@ def load_data():
         df_m['Date'] = pd.to_datetime(df_m['Date'], errors='coerce')
         df_g = pd.read_excel(files["workbook"], sheet_name='GDP_Growth', skiprows=1).iloc[1:, [0, 2, 3, 4]]
         df_g.columns = ['Year', 'GDP_India', 'GDP_Singapore', 'GDP_UK']
-
-# --- Place after data loading and country selection ---
-
-# Mapping titles to the selected country
-map_cols = {
-    "India": {"cpi": "CPI_India", "policy": "Policy_India", "gdp": "IND.1"},
-    "Singapore": {"cpi": "CPI_Singapore", "policy": "Policy_Singapore", "gdp": "SGP"},
-    "UK": {"cpi": "CPI_UK", "policy": "Policy_UK", "gdp": "GBR"}
-}
-
-cpi_col = map_cols[country]['cpi']
-policy_col = map_cols[country]['policy']
-gdp_col = map_cols[country]['gdp']
-
-# 1. Apply Energy Shock Logic (Scenario Simulation)
-df['Shocked_Inflation'] = df[cpi_col] + (energy_shock * 0.12)
-
-# 2. Define Taylor Rule Weights (Strategy Parameters)
-weights = {
-    "Dovish": {"pi": 1.2, "y": 1.0},
-    "Neutral": {"pi": 1.5, "y": 0.5},
-    "Hawkish": {"pi": 2.0, "y": 0.25}
-}
-w = weights[stance]
-neutral_rate = 2.5 
-
-# 3. Calculate Taylor Recommended Rate
-# Note: If GDP is in a separate sheet, ensure it's merged into 'df' first
-df['Taylor_Rate'] = (neutral_rate + df['Shocked_Inflation'] + 
-                     w['pi'] * (df['Shocked_Inflation'] - target_inf) + 
-                     w['y'] * df[gdp_col])
-
-# 4. Calculate the 'Policy Gap'
-df['Policy_Gap'] = df[policy_col] - df['Taylor_Rate']
-
         def clean_fx(path, out_name):
             try:
                 xls = pd.ExcelFile(path); sheet = [s for s in xls.sheet_names if 'README' not in s.upper()][0]
