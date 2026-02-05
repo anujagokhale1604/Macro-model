@@ -95,7 +95,9 @@ with st.sidebar:
     show_taylor = st.toggle("OVERLAY TAYLOR RULE")
     rate_intervention = st.slider("5. MANUAL ADJ (BPS)", -200, 200, 0, step=25)
     lag = st.selectbox("6. TRANSMISSION LAG", [0, 3, 6, 12])
-    # --- Add to Sidebar Section ---
+    st.divider()
+    sentiment = st.select_slider("7. MARKET SENTIMENT", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
+# --- Add to Sidebar Section ---
 st.sidebar.header("🛠️ Strategy & Stress-Testing")
 
 # Scenario Sliders
@@ -108,8 +110,6 @@ stance = st.sidebar.select_slider(
     options=["Dovish", "Neutral", "Hawkish"],
     value="Neutral"
 )
- st.divider()
-    sentiment = st.select_slider("7. MARKET SENTIMENT", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
 
 # --- 4. ANALYTICS ENGINE ---
 df_raw = load_data()
