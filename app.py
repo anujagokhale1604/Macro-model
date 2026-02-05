@@ -154,7 +154,11 @@ if df_raw is not None:
     fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="FX Spot", line=dict(color='#2E8B57')), secondary_y=True)
     fig1.update_layout(height=400, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=20, r=20, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
     st.plotly_chart(fig1, use_container_width=True)
-    # --- Add inside your Figure definition ---
+
+    
+    st.markdown(f"""<div class='analyst-card'><b>Monetary Insight:</b> The spread between the actual Policy Rate and the Taylor Rule suggests a <b>{'Hawkish' if lp > df['Taylor'].iloc[-1] else 'Dovish'}</b> stance. 
+    The current FX trend indicates <b>{'capital outflows' if df[m['fx']].iloc[-1] > df[m['fx']].iloc[-2] else 'currency appreciation'}</b> which may influence future import prices.</div>""", unsafe_allow_html=True)
+  # --- Add inside your Figure definition ---
 
 # Add the Taylor Line
 fig.add_trace(go.Scatter(x=df.index, y=df['Taylor_Rate'], name="Taylor Rule (Optimal)", line=dict(dash='dash', color='red')))
@@ -164,10 +168,6 @@ for i in range(1, len(df)):
     if df['Policy_Gap'].iloc[i] < -2.0: # If the gap is more than 2%
         fig.add_vrect(x0=df.index[i-1], x1=df.index[i], 
                       fillcolor="red", opacity=0.1, layer="below", line_width=0)
-    
-    st.markdown(f"""<div class='analyst-card'><b>Monetary Insight:</b> The spread between the actual Policy Rate and the Taylor Rule suggests a <b>{'Hawkish' if lp > df['Taylor'].iloc[-1] else 'Dovish'}</b> stance. 
-    The current FX trend indicates <b>{'capital outflows' if df[m['fx']].iloc[-1] > df[m['fx']].iloc[-2] else 'currency appreciation'}</b> which may influence future import prices.</div>""", unsafe_allow_html=True)
-
     # CHART II
     st.markdown("<div class='section-header'><i class='fas fa-chart-column'></i> II. Real Economy: Growth & Inflation Linkage</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
