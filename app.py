@@ -79,6 +79,19 @@ def load_data():
     except: return None
 
 # --- 3. SIDEBAR ---
+# --- Add to Sidebar Section ---
+st.sidebar.header("🛠️ Strategy & Stress-Testing")
+
+# Scenario Sliders
+energy_shock = st.sidebar.slider("Energy Price Surge (%)", 0, 100, 0)
+
+# Policy Parameters
+target_inf = st.sidebar.number_input("Target Inflation (%)", value=2.0)
+stance = st.sidebar.select_slider(
+    "Central Bank Stance",
+    options=["Dovish", "Neutral", "Hawkish"],
+    value="Neutral"
+)
 with st.sidebar:
     st.markdown("<h2 style='color:#000000;'><i class='fas fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
     if st.button("RESET PARAMETERS", use_container_width=True):
