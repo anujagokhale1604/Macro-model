@@ -108,7 +108,7 @@ stance = st.sidebar.select_slider(
     options=["Dovish", "Neutral", "Hawkish"],
     value="Neutral"
 )
-    st.divider()
+ st.divider()
     sentiment = st.select_slider("7. MARKET SENTIMENT", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
 
 # --- 4. ANALYTICS ENGINE ---
