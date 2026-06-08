@@ -1,40 +1,26 @@
-# 🏛️ Quantitative Policy Lab
-### *A Monetary Policy Simulation & Teaching Tool*
+# 📈 Macro Model
+### Cross-Country Macroeconomic Analysis — India, Singapore, United Kingdom
 
-This laboratory provides an interactive interface for analyzing Central Bank behavior across different economic regimes. Developed as a graduate-level research tool, it utilizes the **Taylor Rule** framework to bridge the gap between macroeconomic theory and real-world policy application.
+Python codebase for the empirical analysis in Gokhale (2026), documenting an asymmetric Granger causality chain running India → Singapore → UK in CPI inflation.
 
+## What this code does
+- Constructs multi-source monthly CPI datasets (RBI DBIE, SingStat, ONS)
+- Runs VAR(2) models with Cholesky impulse response functions
+- Tests pairwise Granger causality across all country pairs
+- Johansen cointegration testing
+- Diebold-Mariano out-of-sample forecast accuracy testing
+- Markov-switching regime detection
+- Extended VAR projection to December 2026
 
+## Key finding
+India's CPI Granger-causes Singapore's with a two-month lag (p = 0.028). Singapore's Granger-causes the UK's (p = 0.039). Neither reverse direction is significant. The transmission chain runs upstream to downstream — east to west.
 
-## 🕊️ Design Philosophy
-Unlike typical high-contrast financial terminals, this lab is built with a **"Gentle Research"** aesthetic—utilizing a parchment-and-slate palette to focus on clarity, readability, and academic rigor.
+## Technical stack
+- Python (Statsmodels, Pandas, NumPy, Scipy)
+- Stata (supplementary analysis)
 
-## 🧠 Interactive Teaching Modules
-
-### 1. Macro Scenario Simulator
-Allows users to instantly observe how different economic shocks force policy trade-offs:
-* **Stagflation Shock:** High inflation + Negative output gap.
-* **Global Recession:** Deflationary pressure + Deep output gap.
-* **Soft Landing:** Inflation convergence with minimal growth disruption.
-
-### 2. Behavioral Calibration
-Users can toggle between central banking philosophies:
-* **Inflation Hawk:** Prioritizes price stability with high sensitivity to CPI deviations.
-* **Dual Mandate:** Balances inflation targets with economic growth (Output Gap).
-* **Standard:** A balanced historical Taylor approach.
-
-### 3. Structural Parameters
-* **Neutral Rate ($r^*$):** Adjust the "anchor" rate where the economy is in equilibrium.
-* **Policy Inertia:** Demonstrates "Smoothing," showing why banks move in small increments (e.g., 25bps) rather than jumping to fair value instantly.
-
-## 🛠️ Technical Implementation
-* **Language:** Python
-* **Interface:** Streamlit (Custom CSS for Parchment UI)
-* **Visuals:** Plotly (High-visibility academic styling)
-* **Framework:** Taylor Rule Monetary Model
-
-## 📊 Analytical Indicators
-The terminal calculates a **Policy Gap** in **Basis Points (bps)**—the industry standard for JPMC, Goldman Sachs, and BCG—indicating whether a market is "over-tightened" or "behind the curve."
+## Research output
+Gokhale, A.A. (2026). *Cross-Country Macroeconomic Dynamics: Inflation, Growth, and Monetary Policy — India, Singapore, and the United Kingdom.* SSRN Working Paper. [ssrn.com/abstract=6514338](https://ssrn.com/abstract=6514338)
 
 ---
-**Developed by:** Anuja Gokhale  
-**Focus:** Macroeconomics & Financial Policy Research
+*Anuja A. Gokhale · MA Applied Economics, NUS (Merit Scholar) · anujagokhale1604@gmail.com*
