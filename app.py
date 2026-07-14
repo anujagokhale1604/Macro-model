@@ -4,19 +4,17 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 
-# --- 1. CHIC RESEARCH UI ENGINE ---
+# --- 1. UI ENGINE ---
 st.set_page_config(page_title="Macro Intel Pro", layout="wide")
-
-st.markdown('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">', unsafe_allow_html=True)
 
 st.markdown("""
     <style>
     * { font-family: 'Times New Roman', Times, serif !important; }
     .stApp { background-color: #F2EFE9; color: #2C2C2C; }
 
-    /* REDUCING VERTICAL WASTE */
+    /* LAYOUT */
     .block-container { padding-top: 1rem; padding-bottom: 1rem; }
-    .stPlotlyChart { margin-top: -25px; }
+    .stPlotlyChart { margin-top: 0px; }
 
     /* SIDEBAR */
     section[data-testid="stSidebar"] {
@@ -30,7 +28,54 @@ st.markdown("""
         color: #002366 !important;
     }
 
-    /* TABS - fix invisible white text on cream */
+    /* SELECTBOX AND DROPDOWNS - fix invisible text */
+    div[data-baseweb="select"] * {
+        color: #2C2C2C !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-baseweb="select"] > div {
+        background-color: #FFFFFF !important;
+        border-color: #A39B8F !important;
+        color: #2C2C2C !important;
+    }
+    div[data-baseweb="popover"] * {
+        color: #2C2C2C !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-baseweb="menu"] * {
+        color: #2C2C2C !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-baseweb="option"] {
+        color: #2C2C2C !important;
+        background-color: #FFFFFF !important;
+    }
+    div[data-baseweb="option"]:hover {
+        background-color: #E5E1D8 !important;
+        color: #002366 !important;
+    }
+    /* Radio buttons */
+    div[data-testid="stRadio"] label {
+        color: #2C2C2C !important;
+    }
+    /* Slider */
+    div[data-testid="stSlider"] label {
+        color: #2C2C2C !important;
+    }
+    /* Toggle */
+    div[data-testid="stToggle"] label {
+        color: #2C2C2C !important;
+    }
+    /* Number input */
+    div[data-testid="stNumberInput"] label {
+        color: #2C2C2C !important;
+    }
+    /* Select slider */
+    div[data-testid="stSelectSlider"] label {
+        color: #2C2C2C !important;
+    }
+
+    /* TABS */
     .stTabs [data-baseweb="tab-list"] {
         background-color: transparent;
         border-bottom: 2px solid #A39B8F;
@@ -86,7 +131,6 @@ st.markdown("""
         padding: 20px; background-color: #FAF9F6;
         color: #1A1A1A; font-size: 0.92rem; border: 1px solid #A39B8F; line-height: 1.5;
     }
-
     .main-title {
         font-size: 32px; font-weight: bold; color: #002366;
         border-bottom: 3px solid #C5A059; padding-bottom: 5px; margin-bottom: 20px;
@@ -96,7 +140,7 @@ st.markdown("""
         margin-top: 20px; margin-bottom: 5px; text-transform: uppercase;
     }
 
-    /* GENERAL TEXT */
+    /* GENERAL */
     p, span, div, label { color: #2C2C2C; }
     h1, h2, h3 { color: #002366 !important; }
     </style>
@@ -131,7 +175,7 @@ def load_data():
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#002366;'><i class='fas fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#002366;'>NAVIGATE</h2>", unsafe_allow_html=True)
     if st.button("RESET PARAMETERS", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -139,7 +183,7 @@ with st.sidebar:
     market = st.selectbox("1. SELECT MARKET", ["India", "UK", "Singapore"])
     horizon = st.radio("2. TIME HORIZON", ["Historical", "10 Years", "5 Years"], index=1)
     st.divider()
-    scenario = st.selectbox("3. SCENARIO ENGINE", ["Standard", "Stagflation 🌪️", "Depression 📉", "High Growth 🚀"])
+    scenario = st.selectbox("3. SCENARIO ENGINE", ["Standard", "Stagflation", "Depression", "High Growth"])
     severity = st.slider("4. SEVERITY (%)", 0, 100, 50)
     st.divider()
     view_real = st.toggle("ACTIVATE REAL RATES")
@@ -158,7 +202,7 @@ stance = st.sidebar.select_slider(
     value="Neutral"
 )
 
-# --- 4. ANALYTICS ENGINE ---
+# --- 4. CHART LAYOUT ---
 CHART_LAYOUT = dict(
     template="plotly_white",
     paper_bgcolor='rgba(242,239,233,1)',
@@ -193,6 +237,7 @@ CHART_LAYOUT = dict(
     )
 )
 
+# --- 5. ANALYTICS ---
 df_raw = load_data()
 if df_raw is not None:
     m_map = {
@@ -205,11 +250,11 @@ if df_raw is not None:
     mult = severity / 100
     df[m['p']] += (rate_intervention / 100)
 
-    if scenario == "Stagflation 🌪️":
+    if scenario == "Stagflation":
         df[m['cpi']] += (5.0 * mult); df[m['gdp']] -= (3.0 * mult)
-    elif scenario == "Depression 📉":
+    elif scenario == "Depression":
         df[m['gdp']] -= (8.0 * mult); df[m['cpi']] -= (2.0 * mult)
-    elif scenario == "High Growth 🚀":
+    elif scenario == "High Growth":
         df[m['gdp']] += (4.0 * mult); df[m['cpi']] -= (1.0 * mult)
 
     avg_g = df[m['gdp']].mean()
@@ -217,7 +262,7 @@ if df_raw is not None:
     if view_real: df[m['p']] -= df[m['cpi']]
     if lag > 0: df[m['cpi']] = df[m['cpi']].shift(lag); df[m['gdp']] = df[m['gdp']].shift(lag)
 
-    st.markdown(f"<div class='main-title'><i class='fas fa-scale-balanced'></i> {market.upper()} STRATEGY TERMINAL</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='main-title'>{market.upper()} STRATEGY TERMINAL</div>", unsafe_allow_html=True)
 
     # METRICS
     lp, lc, lg = df[m['p']].iloc[-1], df[m['cpi']].iloc[-1], df[m['gdp']].iloc[-1]
@@ -228,7 +273,7 @@ if df_raw is not None:
     c4.metric(f"FX ({m['sym']})", f"{df[m['fx']].iloc[-1]:.2f}")
 
     # CHART I
-    st.markdown("<div class='section-header'><i class='fas fa-chart-line'></i> I. Monetary Policy & FX Transmission</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>I. Monetary Policy & FX Transmission</div>", unsafe_allow_html=True)
     fig1 = make_subplots(specs=[[{"secondary_y": True}]])
     fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate", line=dict(color='#002366', width=3)), secondary_y=False)
     if show_taylor: fig1.add_trace(go.Scatter(x=df['Date'], y=df['Taylor'], name="Taylor Rule", line=dict(color='#8B4513', dash='dash')), secondary_y=False)
@@ -242,7 +287,7 @@ if df_raw is not None:
     The current FX trend indicates <b>{'capital outflows' if df[m['fx']].iloc[-1] > df[m['fx']].iloc[-2] else 'currency appreciation'}</b> which may influence future import prices.</div>""", unsafe_allow_html=True)
 
     # CHART II
-    st.markdown("<div class='section-header'><i class='fas fa-chart-column'></i> II. Real Economy: Growth & Inflation Linkage</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>II. Real Economy: Growth & Inflation Linkage</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
     fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="Real GDP Growth", marker_color='#BDB7AB'), secondary_y=False)
     fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI (YoY)", line=dict(color='#A52A2A', width=3)), secondary_y=True)
@@ -255,7 +300,7 @@ if df_raw is not None:
     The CPI trajectory reflects <b>{'accelerating' if lc > 3.0 else 'disinflationary'}</b> dynamics, potentially forcing a recalibration of real interest rates.</div>""", unsafe_allow_html=True)
 
     # FOR YOU
-    st.markdown("<div class='section-header'><i class='fas fa-user-tie'></i> III. For You</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>III. For You</div>", unsafe_allow_html=True)
     st.markdown(f"""<div class='for-you-card'><b>Strategic Personal Guidance:</b><br>
     &bull; <b>Mortgages/Loans:</b> Borrowing costs are currently <b>{'Restrictive' if lp > 4.5 else 'Accommodative'}</b>. High severity in {scenario} suggests potential tightening ahead.<br>
     &bull; <b>Personal Savings:</b> Current rates offer <b>{'strong' if lp > 4.5 else 'limited'}</b> returns for cash deposits. Consider hedging against {lc:.1f}% inflation.<br>
@@ -265,14 +310,14 @@ if df_raw is not None:
     st.divider()
     colA, colB = st.columns([1, 1.2])
     with colA:
-        st.markdown("<div class='section-header'><i class='fas fa-table'></i> IV. Correlation Matrix</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-header'>IV. Correlation Matrix</div>", unsafe_allow_html=True)
         corr = df[[m['p'], m['cpi'], m['gdp'], m['fx']]].corr()
         st.dataframe(corr.style.background_gradient(cmap='PuBu').format("{:.2f}"), use_container_width=True)
         st.markdown(f"""<div class='analyst-card' style='border-left:5px solid #7A6D5D;'><b>Correlation Insight:</b> The strongest relationship is between <b>{corr.unstack().sort_values(ascending=False).index[4][0]}</b> and <b>{corr.unstack().sort_values(ascending=False).index[4][1]}</b>.
         High correlation implies that changes in one variable will likely trigger immediate volatility in the other.</div>""", unsafe_allow_html=True)
 
     with colB:
-        st.markdown("<div class='section-header'><i class='fas fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-header'>V. Methodological Note</div>", unsafe_allow_html=True)
         st.markdown("""<div class='method-card'>
             <b>1. Taylor Rule Modelling:</b> We utilize a standard monetary reaction function:
             i = r* + pi + 0.5(pi - pi*) + 0.5(y - y*).
