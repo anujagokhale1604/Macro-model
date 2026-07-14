@@ -16,37 +16,89 @@ st.markdown("""
 
     /* REDUCING VERTICAL WASTE */
     .block-container { padding-top: 1rem; padding-bottom: 1rem; }
-    .stPlotlyChart { margin-top: -25px; } 
+    .stPlotlyChart { margin-top: -25px; }
 
+    /* SIDEBAR */
     section[data-testid="stSidebar"] {
-        background-color: #E5E1D8 !important; 
+        background-color: #E5E1D8 !important;
         border-right: 1px solid #A39B8F;
+    }
+    section[data-testid="stSidebar"] * {
+        color: #2C2C2C !important;
+    }
+    section[data-testid="stSidebar"] h2 {
+        color: #002366 !important;
+    }
+
+    /* TABS - fix invisible white text on cream */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: transparent;
+        border-bottom: 2px solid #A39B8F;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: #002366 !important;
+        font-weight: bold !important;
+        background-color: transparent !important;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #002366 !important;
+        border-bottom: 3px solid #C5A059 !important;
+        background-color: #FDFCFB !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #C5A059 !important;
+    }
+
+    /* METRICS */
+    div[data-testid="metric-container"] {
+        background-color: #FFFFFF;
+        border: 1px solid #A39B8F;
+        border-left: 5px solid #002366;
+        padding: 10px 15px;
+        border-radius: 2px;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #002366 !important;
+        font-weight: bold !important;
+        font-size: 0.85rem !important;
+    }
+    [data-testid="stMetricValue"] {
+        color: #2C2C2C !important;
+        font-size: 1.4rem !important;
+        font-weight: bold !important;
+    }
+    [data-testid="stMetricDelta"] {
+        color: #2C2C2C !important;
     }
 
     /* CARDS */
-    .analyst-card { 
-        padding: 15px; border: 1px solid #A39B8F; 
-        background-color: #FFFFFF; margin-top: -10px; margin-bottom: 20px; 
-        border-left: 5px solid #002366; font-size: 0.95rem;
+    .analyst-card {
+        padding: 15px; border: 1px solid #A39B8F;
+        background-color: #FFFFFF; margin-top: 10px; margin-bottom: 20px;
+        border-left: 5px solid #002366; font-size: 0.95rem; color: #2C2C2C;
     }
     .for-you-card {
-        padding: 20px; background-color: #FDFCFB; 
+        padding: 20px; background-color: #FDFCFB;
         color: #1A1A1A; margin-bottom: 25px; border: 1px solid #A39B8F;
         border-left: 10px solid #002366;
     }
-    .method-card { 
-        padding: 20px; background-color: #FAF9F6; 
+    .method-card {
+        padding: 20px; background-color: #FAF9F6;
         color: #1A1A1A; font-size: 0.92rem; border: 1px solid #A39B8F; line-height: 1.5;
     }
-    
-    .main-title { 
-        font-size: 32px; font-weight: bold; color: #002366; 
-        border-bottom: 3px solid #C5A059; padding-bottom: 5px; margin-bottom: 20px; 
+
+    .main-title {
+        font-size: 32px; font-weight: bold; color: #002366;
+        border-bottom: 3px solid #C5A059; padding-bottom: 5px; margin-bottom: 20px;
     }
-    .section-header { 
-        color: #7A6D5D; font-weight: bold; font-size: 1.2rem; 
+    .section-header {
+        color: #002366; font-weight: bold; font-size: 1.2rem;
         margin-top: 20px; margin-bottom: 5px; text-transform: uppercase;
     }
+
+    /* GENERAL TEXT */
+    p, span, div, label { color: #2C2C2C; }
+    h1, h2, h3 { color: #002366 !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -79,7 +131,7 @@ def load_data():
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.markdown("<h2 style='color:#000000;'><i class='fas fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color:#002366;'><i class='fas fa-bars-staggered'></i> NAVIGATE</h2>", unsafe_allow_html=True)
     if st.button("RESET PARAMETERS", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
@@ -96,13 +148,9 @@ with st.sidebar:
     lag = st.selectbox("6. TRANSMISSION LAG", [0, 3, 6, 12])
     st.divider()
     sentiment = st.select_slider("7. MARKET SENTIMENT", options=["Risk-Off", "Neutral", "Risk-On"], value="Neutral")
-# --- Add to Sidebar Section ---
-st.sidebar.header("🛠️ Strategy & Stress-Testing")
 
-# Scenario Sliders
+st.sidebar.header("Strategy & Stress-Testing")
 energy_shock = st.sidebar.slider("Energy Price Surge (%)", 0, 100, 0)
-
-# Policy Parameters
 target_inf = st.sidebar.number_input("Target Inflation (%)", value=2.0)
 stance = st.sidebar.select_slider(
     "Central Bank Stance",
@@ -111,6 +159,40 @@ stance = st.sidebar.select_slider(
 )
 
 # --- 4. ANALYTICS ENGINE ---
+CHART_LAYOUT = dict(
+    template="plotly_white",
+    paper_bgcolor='rgba(242,239,233,1)',
+    plot_bgcolor='rgba(242,239,233,1)',
+    font=dict(color='#2C2C2C', family='Times New Roman'),
+    margin=dict(l=20, r=20, t=30, b=20),
+    legend=dict(
+        orientation="h", yanchor="bottom", y=1.02,
+        xanchor="right", x=1,
+        font=dict(color='#2C2C2C'),
+        bgcolor='rgba(255,255,255,0.8)',
+        bordercolor='#A39B8F',
+        borderwidth=1
+    ),
+    xaxis=dict(
+        gridcolor='#E5E1D8',
+        linecolor='#A39B8F',
+        tickfont=dict(color='#2C2C2C'),
+        title_font=dict(color='#002366')
+    ),
+    yaxis=dict(
+        gridcolor='#E5E1D8',
+        linecolor='#A39B8F',
+        tickfont=dict(color='#2C2C2C'),
+        title_font=dict(color='#002366')
+    ),
+    yaxis2=dict(
+        gridcolor='#E5E1D8',
+        linecolor='#A39B8F',
+        tickfont=dict(color='#2C2C2C'),
+        title_font=dict(color='#002366')
+    )
+)
+
 df_raw = load_data()
 if df_raw is not None:
     m_map = {
@@ -122,7 +204,7 @@ if df_raw is not None:
 
     mult = severity / 100
     df[m['p']] += (rate_intervention / 100)
-    
+
     if scenario == "Stagflation 🌪️":
         df[m['cpi']] += (5.0 * mult); df[m['gdp']] -= (3.0 * mult)
     elif scenario == "Depression 📉":
@@ -136,7 +218,7 @@ if df_raw is not None:
     if lag > 0: df[m['cpi']] = df[m['cpi']].shift(lag); df[m['gdp']] = df[m['gdp']].shift(lag)
 
     st.markdown(f"<div class='main-title'><i class='fas fa-scale-balanced'></i> {market.upper()} STRATEGY TERMINAL</div>", unsafe_allow_html=True)
-    
+
     # METRICS
     lp, lc, lg = df[m['p']].iloc[-1], df[m['cpi']].iloc[-1], df[m['gdp']].iloc[-1]
     c1, c2, c3, c4 = st.columns(4)
@@ -151,30 +233,33 @@ if df_raw is not None:
     fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['p']], name="Policy Rate", line=dict(color='#002366', width=3)), secondary_y=False)
     if show_taylor: fig1.add_trace(go.Scatter(x=df['Date'], y=df['Taylor'], name="Taylor Rule", line=dict(color='#8B4513', dash='dash')), secondary_y=False)
     fig1.add_trace(go.Scatter(x=df['Date'], y=df[m['fx']], name="FX Spot", line=dict(color='#2E8B57')), secondary_y=True)
-    fig1.update_layout(height=400, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=20, r=20, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    fig1.update_layout(height=400, **CHART_LAYOUT)
+    fig1.update_yaxes(title_text="Policy Rate (%)", secondary_y=False, tickfont=dict(color='#2C2C2C'))
+    fig1.update_yaxes(title_text=f"FX ({m['sym']})", secondary_y=True, tickfont=dict(color='#2C2C2C'))
     st.plotly_chart(fig1, use_container_width=True)
 
-    
-    st.markdown(f"""<div class='analyst-card'><b>Monetary Insight:</b> The spread between the actual Policy Rate and the Taylor Rule suggests a <b>{'Hawkish' if lp > df['Taylor'].iloc[-1] else 'Dovish'}</b> stance. 
+    st.markdown(f"""<div class='analyst-card'><b>Monetary Insight:</b> The spread between the actual Policy Rate and the Taylor Rule suggests a <b>{'Hawkish' if lp > df['Taylor'].iloc[-1] else 'Dovish'}</b> stance.
     The current FX trend indicates <b>{'capital outflows' if df[m['fx']].iloc[-1] > df[m['fx']].iloc[-2] else 'currency appreciation'}</b> which may influence future import prices.</div>""", unsafe_allow_html=True)
- 
+
     # CHART II
     st.markdown("<div class='section-header'><i class='fas fa-chart-column'></i> II. Real Economy: Growth & Inflation Linkage</div>", unsafe_allow_html=True)
     fig2 = make_subplots(specs=[[{"secondary_y": True}]])
     fig2.add_trace(go.Bar(x=df['Date'], y=df[m['gdp']], name="Real GDP Growth", marker_color='#BDB7AB'), secondary_y=False)
     fig2.add_trace(go.Scatter(x=df['Date'], y=df[m['cpi']], name="CPI (YoY)", line=dict(color='#A52A2A', width=3)), secondary_y=True)
-    fig2.update_layout(height=400, template="plotly_white", paper_bgcolor='rgba(0,0,0,0)', margin=dict(l=20, r=20, t=10, b=10), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+    fig2.update_layout(height=400, **CHART_LAYOUT)
+    fig2.update_yaxes(title_text="GDP Growth (%)", secondary_y=False, tickfont=dict(color='#2C2C2C'))
+    fig2.update_yaxes(title_text="CPI Inflation (%)", secondary_y=True, tickfont=dict(color='#2C2C2C'))
     st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown(f"""<div class='analyst-card'><b>Growth Insight:</b> Under the <b>{scenario}</b> scenario, the economy is experiencing <b>{'contractionary' if lg < 0 else 'expansionary'}</b> pressure. 
+    st.markdown(f"""<div class='analyst-card'><b>Growth Insight:</b> Under the <b>{scenario}</b> scenario, the economy is experiencing <b>{'contractionary' if lg < 0 else 'expansionary'}</b> pressure.
     The CPI trajectory reflects <b>{'accelerating' if lc > 3.0 else 'disinflationary'}</b> dynamics, potentially forcing a recalibration of real interest rates.</div>""", unsafe_allow_html=True)
 
     # FOR YOU
     st.markdown("<div class='section-header'><i class='fas fa-user-tie'></i> III. For You</div>", unsafe_allow_html=True)
     st.markdown(f"""<div class='for-you-card'><b>Strategic Personal Guidance:</b><br>
-    • <b>Mortgages/Loans:</b> Borrowing costs are currently <b>{'Restrictive' if lp > 4.5 else 'Accommodative'}</b>. High severity in {scenario} suggests potential tightening ahead.<br>
-    • <b>Personal Savings:</b> Current rates offer <b>{'strong' if lp > 4.5 else 'limited'}</b> returns for cash deposits. Consider hedging against {lc:.1f}% inflation.<br>
-    • <b>Daily Budget:</b> At {lc:.1f}% CPI, your purchasing power is <b>{'eroding' if lc > 3 else 'stable'}</b>. Plan for increased essential costs.</div>""", unsafe_allow_html=True)
+    &bull; <b>Mortgages/Loans:</b> Borrowing costs are currently <b>{'Restrictive' if lp > 4.5 else 'Accommodative'}</b>. High severity in {scenario} suggests potential tightening ahead.<br>
+    &bull; <b>Personal Savings:</b> Current rates offer <b>{'strong' if lp > 4.5 else 'limited'}</b> returns for cash deposits. Consider hedging against {lc:.1f}% inflation.<br>
+    &bull; <b>Daily Budget:</b> At {lc:.1f}% CPI, your purchasing power is <b>{'eroding' if lc > 3 else 'stable'}</b>. Plan for increased essential costs.</div>""", unsafe_allow_html=True)
 
     # STATS & METHODOLOGY
     st.divider()
@@ -183,18 +268,19 @@ if df_raw is not None:
         st.markdown("<div class='section-header'><i class='fas fa-table'></i> IV. Correlation Matrix</div>", unsafe_allow_html=True)
         corr = df[[m['p'], m['cpi'], m['gdp'], m['fx']]].corr()
         st.dataframe(corr.style.background_gradient(cmap='PuBu').format("{:.2f}"), use_container_width=True)
-        st.markdown(f"""<div class='analyst-card' style='border-left:5px solid #7A6D5D;'><b>Correlation Insight:</b> The strongest relationship is between <b>{corr.unstack().sort_values(ascending=False).index[4][0]}</b> and <b>{corr.unstack().sort_values(ascending=False).index[4][1]}</b>. 
+        st.markdown(f"""<div class='analyst-card' style='border-left:5px solid #7A6D5D;'><b>Correlation Insight:</b> The strongest relationship is between <b>{corr.unstack().sort_values(ascending=False).index[4][0]}</b> and <b>{corr.unstack().sort_values(ascending=False).index[4][1]}</b>.
         High correlation implies that changes in one variable will likely trigger immediate volatility in the other.</div>""", unsafe_allow_html=True)
 
     with colB:
         st.markdown("<div class='section-header'><i class='fas fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
-        st.markdown(f"""<div class='method-card'>
-            <b>1. Taylor Rule Modelling:</b> We utilize a standard monetary reaction function: i = r* + π + 0.5(π - π*) + 0.5(y - y*).
-            This identifies where the 'neutral' rate should sit based on the Output Gap and Inflation Gap.<br><br>
-            <b>2. Scenario Overrides:</b> 
-            - <i>Stagflation:</i> Applies a +500bps shock to CPI and a -300bps shock to GDP, scaled by user-defined severity.
-            - <i>Depression:</i> Forces a -800bps contraction in GDP and a -200bps deflationary shock to CPI.
-            - <i>High Growth:</i> Projects a +400bps GDP expansion with moderate -100bps price stabilization.<br><br>
+        st.markdown("""<div class='method-card'>
+            <b>1. Taylor Rule Modelling:</b> We utilize a standard monetary reaction function:
+            i = r* + pi + 0.5(pi - pi*) + 0.5(y - y*).
+            This identifies where the neutral rate should sit based on the Output Gap and Inflation Gap.<br><br>
+            <b>2. Scenario Overrides:</b>
+            <br>- <i>Stagflation:</i> Applies a +500bps shock to CPI and a -300bps shock to GDP, scaled by user-defined severity.
+            <br>- <i>Depression:</i> Forces a -800bps contraction in GDP and a -200bps deflationary shock to CPI.
+            <br>- <i>High Growth:</i> Projects a +400bps GDP expansion with moderate -100bps price stabilization.<br><br>
             <b>3. Data Integrity:</b> FX data is resampled to monthly mean (MS) to eliminate high-frequency noise and align with lagging GDP reporting cycles.
         </div>""", unsafe_allow_html=True)
 
