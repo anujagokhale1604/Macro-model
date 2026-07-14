@@ -189,7 +189,7 @@ if df_raw is not None:
     with colB:
         st.markdown("<div class='section-header'><i class='fas fa-book'></i> V. Methodological Note</div>", unsafe_allow_html=True)
         st.markdown(f"""<div class='method-card'>
-            <b>1. Taylor Rule Modelling:</b> We utilize a standard monetary reaction function: $i = r^* + \pi + 0.5(\pi - \pi^*) + 0.5(y - y^*)$. 
+            <b>1. Taylor Rule Modelling:</b> We utilize a standard monetary reaction function: i = r* + π + 0.5(π - π*) + 0.5(y - y*).
             This identifies where the 'neutral' rate should sit based on the Output Gap and Inflation Gap.<br><br>
             <b>2. Scenario Overrides:</b> 
             - <i>Stagflation:</i> Applies a +500bps shock to CPI and a -300bps shock to GDP, scaled by user-defined severity.
